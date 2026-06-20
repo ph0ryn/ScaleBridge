@@ -14,7 +14,9 @@ path = "src/lib.rs"
 
 [dependencies]
 btleplug.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+time.workspace = true
 tokio.workspace = true
 tracing.workspace = true

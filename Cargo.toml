@@ -20,6 +20,7 @@ publish = false
 [workspace.dependencies]
 btleplug = "0.12.0"
 clap = { version = "4.6.1", features = ["derive"] }
+futures-util = "0.3.32"
 hex = "0.4.3"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 scalebridge-core = { path = "crates/scalebridge-core" }
@@ -30,7 +31,7 @@ tauri-build = "2.6.3"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-log = "2.8.0"
 thiserror = "2.0.18"
-time = { version = "0.3.49", features = ["formatting", "macros", "parsing", "serde"] }
-tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "signal", "time"] }
+time = { version = "0.3.49", features = ["formatting", "local-offset", "macros", "parsing", "serde"] }
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }

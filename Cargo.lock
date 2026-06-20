@@ -3196,8 +3196,10 @@ name = "scalebridge-core"
 version = "0.1.0"
 dependencies = [
  "btleplug",
+ "futures-util",
  "serde",
  "thiserror 2.0.18",
+ "time",
  "tokio",
  "tracing",
 ]
