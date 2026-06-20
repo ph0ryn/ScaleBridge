@@ -3183,6 +3183,7 @@ name = "scalebridge-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hex",
  "scalebridge-core",
  "scalebridge-storage",
  "tokio",

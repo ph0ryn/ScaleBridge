@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
+hex.workspace = true
 scalebridge-core.workspace = true
 scalebridge-storage.workspace = true
 tokio.workspace = true
