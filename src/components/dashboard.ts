@@ -26,6 +26,7 @@ const REFRESH_ICON = "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6";
 
 export interface DashboardHandlers {
   onRefresh: () => void;
+  onSetAutostartEnabled: (enabled: boolean) => void;
   onStartWatcher: () => void;
   onStopWatcher: () => void;
 }
@@ -61,7 +62,7 @@ function renderLoadedDashboard(
     createElement("section", { className: "hero-grid" }, [
       renderLatestMeasurement(data),
       renderConnectionPanel(data, state, handlers),
-      renderAutostartPanel(data),
+      renderAutostartPanel(data, state, handlers),
     ]),
     createElement("section", { className: "content-grid" }, [
       renderMeasurementsPanel(data.measurements),
@@ -280,7 +281,11 @@ function renderConnectionPanel(
   ]);
 }
 
-function renderAutostartPanel(data: DashboardData): HTMLElement {
+function renderAutostartPanel(
+  data: DashboardData,
+  state: AppState,
+  handlers: DashboardHandlers,
+): HTMLElement {
   let autostartLabel = "Off";
   let autostartTone = "neutral";
 
@@ -296,7 +301,13 @@ function renderAutostartPanel(data: DashboardData): HTMLElement {
         createElement("strong", { text: "Login launch" }),
         createElement("span", { text: "Managed by the Tauri backend" }),
       ]),
-      renderStatusPill(autostartLabel, autostartTone),
+      renderAutostartSwitch({
+        disabled: state.saving || !state.backendAvailable,
+        enabled: data.autostart.enabled,
+        label: autostartLabel,
+        onToggle: handlers.onSetAutostartEnabled,
+        tone: autostartTone,
+      }),
     ]),
   ]);
 }
@@ -449,6 +460,37 @@ function renderMetric(label: string, value: string, tone: string): HTMLElement {
 
 function renderStatusPill(label: string, tone: string): HTMLElement {
   return createElement("span", { className: `status-pill tone-${tone}`, text: label });
+}
+
+function renderAutostartSwitch(options: {
+  disabled: boolean;
+  enabled: boolean;
+  label: string;
+  onToggle: (enabled: boolean) => void;
+  tone: string;
+}): HTMLButtonElement {
+  const button = createElement("button", {
+    ariaLabel: "Toggle login launch",
+    className: `switch-control tone-${options.tone}`,
+    disabled: options.disabled,
+    type: "button",
+  });
+
+  button.setAttribute("aria-checked", String(options.enabled));
+  button.setAttribute("role", "switch");
+
+  button.append(
+    createElement("span", { className: "switch-track" }, [
+      createElement("span", { className: "switch-knob" }),
+    ]),
+    createElement("span", { className: "switch-label", text: options.label }),
+  );
+
+  button.addEventListener("click", () => {
+    options.onToggle(!options.enabled);
+  });
+
+  return button;
 }
 
 function renderActionButton(options: ActionButtonOptions): HTMLButtonElement {

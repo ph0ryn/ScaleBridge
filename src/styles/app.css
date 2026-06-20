@@ -352,6 +352,64 @@ table {
   white-space: nowrap;
 }
 
+.switch-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #66727b;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.switch-control:disabled {
+  color: #9aa4aa;
+}
+
+.switch-track {
+  position: relative;
+  display: inline-flex;
+  width: 42px;
+  height: 24px;
+  border: 1px solid #aab7bf;
+  border-radius: 999px;
+  background: #ffffff;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #66727b;
+  transition:
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.switch-control[aria-checked="true"] .switch-track {
+  border-color: #16704f;
+  background: #e8f6f0;
+}
+
+.switch-control[aria-checked="true"] .switch-knob {
+  background: #16704f;
+  transform: translateX(18px);
+}
+
+.switch-label {
+  min-width: 18px;
+  text-align: left;
+}
+
 .tone-good {
   color: #16704f;
 }

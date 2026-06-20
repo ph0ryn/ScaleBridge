@@ -50,6 +50,10 @@ export async function getAutostartStatus(): Promise<AutostartStatus> {
   return invoke<AutostartStatus>("get_autostart_status");
 }
 
+export async function setAutostartEnabled(enabled: boolean): Promise<AutostartStatus> {
+  return invoke<AutostartStatus>("set_autostart_enabled", { enabled });
+}
+
 export async function listenToBackendEvent(
   eventName: BackendEventName,
   handler: (event: Event<unknown>) => void,
