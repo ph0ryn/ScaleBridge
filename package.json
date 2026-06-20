@@ -1,0 +1,63 @@
+{
+  "name": "scalebridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "fix": "pnpm --aggregate-output /^fix:/",
+    "fix:rust": "cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged -- -D warnings ; pnpm run format:rust",
+    "fix:ts": "pnpm run lint:ts --fix ; pnpm run format:ts",
+    "format": "pnpm --aggregate-output /^format:/",
+    "format:rust": "cargo fmt --all",
+    "format:ts": "oxfmt",
+    "preinstall": "npx only-allow pnpm",
+    "postinstall": "git config core.hooksPath .githooks",
+    "lint": "pnpm --aggregate-output /^lint:/",
+    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
+    "lint:ts": "eslint ; oxlint --type-aware --type-check",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:build": "tauri build",
+    "tauri:dev": "tauri dev"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "pnpm run fix:ts"
+    ],
+    "src-tauri/**/*.rs": [
+      "pnpm run fix:rust"
+    ],
+    "crates/**/*.rs": [
+      "pnpm run fix:rust"
+    ],
+    "*.{js,mjs}": [
+      "pnpm run fix:ts"
+    ],
+    "*.{json,jsonc}": [
+      "pnpm oxfmt"
+    ],
+    "package.json": [
+      "sort-package-json"
+    ]
+  },
+  "dependencies": {
+    "@tauri-apps/api": "catalog:"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "catalog:",
+    "@tauri-apps/cli": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-oxlint": "catalog:",
+    "lint-staged": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "sort-package-json": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vite": "catalog:"
+  },
+  "packageManager": "pnpm@11.4.0"
+}

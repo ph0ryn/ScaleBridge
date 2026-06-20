@@ -1,0 +1,22 @@
+[package]
+name = "scalebridge-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "scalebridge"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+scalebridge-core.workspace = true
+scalebridge-storage.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -1,0 +1,35 @@
+[workspace]
+members = [
+  "src-tauri",
+  "crates/scalebridge-core",
+  "crates/scalebridge-storage",
+  "crates/scalebridge-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["ph0ryn"]
+license = "MIT"
+repository = "https://github.com/ph0ryn/ScaleBridge"
+homepage = "https://github.com/ph0ryn/ScaleBridge"
+publish = false
+
+[workspace.dependencies]
+btleplug = "0.12.0"
+clap = { version = "4.6.1", features = ["derive"] }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+scalebridge-core = { path = "crates/scalebridge-core" }
+scalebridge-storage = { path = "crates/scalebridge-storage" }
+serde = { version = "1.0.228", features = ["derive"] }
+tauri = { version = "2.11.3", features = ["image-png", "tray-icon"] }
+tauri-build = "2.6.3"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-log = "2.8.0"
+thiserror = "2.0.18"
+time = { version = "0.3.49", features = ["formatting", "macros", "parsing", "serde"] }
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
