@@ -3222,14 +3222,17 @@ dependencies = [
 name = "scalebridge-tauri"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "scalebridge-core",
  "scalebridge-storage",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
  "tauri-plugin-log",
  "thiserror 2.0.18",
+ "time",
  "tokio",
  "tracing",
 ]
