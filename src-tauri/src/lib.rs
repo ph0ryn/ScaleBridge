@@ -1,6 +1,8 @@
 mod commands;
 mod services;
 mod state;
+mod tray;
+mod window;
 
 use std::fs;
 
@@ -30,6 +32,8 @@ pub fn run() {
             commands::set_autostart_enabled,
         ])
         .setup(|app| {
+            tray::create_tray(app)?;
+
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("scalebridge.sqlite");
