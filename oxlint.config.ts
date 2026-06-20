@@ -14,9 +14,10 @@ export default defineConfig({
     suspicious: "off",
   },
   env: {
+    browser: true,
     node: true,
   },
-  ignorePatterns: ["eslint.config.mjs", "node_modules/**", "src-tauri/**", "crates/**"],
+  ignorePatterns: ["eslint.config.mjs", "node_modules/**", "src-tauri/**", "crates/**", "dist/**"],
   jsPlugins: [
     {
       name: "@stylistic",

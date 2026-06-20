@@ -4,7 +4,7 @@ export default defineConfig({
   arrowParens: "always",
   bracketSpacing: true,
   endOfLine: "lf",
-  ignorePatterns: ["package.json", "pnpm-*.yaml"],
+  ignorePatterns: ["package.json", "pnpm-*.yaml", "Cargo.toml", "**/Cargo.toml"],
   insertFinalNewline: true,
   printWidth: 100,
   semi: true,

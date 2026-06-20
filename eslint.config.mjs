@@ -4,11 +4,16 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig(
   {
-    ignores: ["src-tauri/**", "crates/**"],
+    ignores: ["src-tauri/**", "crates/**", "dist/**"],
   },
   {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
+      globals: {
+        document: "readonly",
+        HTMLButtonElement: "readonly",
+        window: "readonly",
+      },
       parser: tseslint.parser,
       parserOptions: {
         projectService: true,

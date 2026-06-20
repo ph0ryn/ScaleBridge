@@ -1,4 +1,6 @@
 node_modules/
+dist/
+.codex-artifacts/
 target/
 src-tauri/gen/
 src-tauri/target/

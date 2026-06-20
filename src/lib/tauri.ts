@@ -1,0 +1,58 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
+
+import type {
+  AppEventRecord,
+  AppStatus,
+  AutostartStatus,
+  DeviceRecord,
+  MeasurementRecord,
+  RawPacketRecord,
+  WatcherStatusResponse,
+} from "./types";
+
+export type BackendEventName =
+  | "watcher://status-changed"
+  | "watcher://device-seen"
+  | "watcher://packet-received"
+  | "watcher://measurement-created"
+  | "watcher://error";
+
+export async function getCurrentStatus(): Promise<AppStatus> {
+  return invoke<AppStatus>("get_current_status");
+}
+
+export async function listRecentMeasurements(limit: number): Promise<MeasurementRecord[]> {
+  return invoke<MeasurementRecord[]>("list_recent_measurements", { limit });
+}
+
+export async function listDevices(): Promise<DeviceRecord[]> {
+  return invoke<DeviceRecord[]>("list_devices");
+}
+
+export async function listRecentEvents(limit: number): Promise<AppEventRecord[]> {
+  return invoke<AppEventRecord[]>("list_recent_events", { limit });
+}
+
+export async function listRecentRawPackets(limit: number): Promise<RawPacketRecord[]> {
+  return invoke<RawPacketRecord[]>("list_recent_raw_packets", { limit });
+}
+
+export async function startWatcher(): Promise<WatcherStatusResponse> {
+  return invoke<WatcherStatusResponse>("start_watcher");
+}
+
+export async function stopWatcher(): Promise<WatcherStatusResponse> {
+  return invoke<WatcherStatusResponse>("stop_watcher");
+}
+
+export async function getAutostartStatus(): Promise<AutostartStatus> {
+  return invoke<AutostartStatus>("get_autostart_status");
+}
+
+export async function listenToBackendEvent(
+  eventName: BackendEventName,
+  handler: (event: Event<unknown>) => void,
+): Promise<UnlistenFn> {
+  return listen(eventName, handler);
+}
