@@ -3186,6 +3186,8 @@ dependencies = [
  "hex",
  "scalebridge-core",
  "scalebridge-storage",
+ "serde_json",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
