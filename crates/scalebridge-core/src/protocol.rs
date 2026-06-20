@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use time::OffsetDateTime;
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 
 pub mod uuids {
     pub const T9120_SERVICE: &str = "0000fff0-0000-1000-8000-00805f9b34fb";
@@ -211,6 +211,17 @@ pub struct HistoryTimestamp {
     pub hour: u8,
     pub minute: u8,
     pub second: u8,
+}
+
+impl HistoryTimestamp {
+    #[must_use]
+    pub fn to_offset_date_time(&self, offset: UtcOffset) -> Option<OffsetDateTime> {
+        let month = Month::try_from(self.month).ok()?;
+        let date = Date::from_calendar_date(i32::from(self.year), month, self.day).ok()?;
+        let time = Time::from_hms(self.hour, self.minute, self.second).ok()?;
+
+        Some(PrimitiveDateTime::new(date, time).assume_offset(offset))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -500,6 +511,29 @@ mod tests {
                 second: 20,
             },
         );
+    }
+
+    #[test]
+    fn converts_history_timestamp_to_offset_date_time() {
+        let timestamp = HistoryTimestamp {
+            year: 2026,
+            month: 6,
+            day: 21,
+            hour: 5,
+            minute: 4,
+            second: 48,
+        };
+        let measured_at = timestamp
+            .to_offset_date_time(UtcOffset::from_hms(9, 0, 0).unwrap())
+            .unwrap();
+
+        assert_eq!(measured_at.year(), 2026);
+        assert_eq!(measured_at.month() as u8, 6);
+        assert_eq!(measured_at.day(), 21);
+        assert_eq!(measured_at.hour(), 5);
+        assert_eq!(measured_at.minute(), 4);
+        assert_eq!(measured_at.second(), 48);
+        assert_eq!(measured_at.offset(), UtcOffset::from_hms(9, 0, 0).unwrap());
     }
 
     #[test]

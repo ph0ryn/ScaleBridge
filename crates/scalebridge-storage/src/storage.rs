@@ -2,7 +2,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
 use thiserror::Error;
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 use crate::{
     AppEventInsert, AppEventRecord, DeviceRecord, DeviceUpsert, MeasurementInsert,
@@ -199,6 +199,25 @@ impl Storage {
     }
 
     pub fn insert_measurement(&self, measurement: &MeasurementInsert) -> Result<i64, StorageError> {
+        self.insert_measurement_unchecked(measurement)
+    }
+
+    pub fn insert_measurement_debounced(
+        &self,
+        measurement: &MeasurementInsert,
+        debounce_window: Duration,
+    ) -> Result<Option<i64>, StorageError> {
+        if self.has_recent_matching_measurement(measurement, debounce_window)? {
+            return Ok(None);
+        }
+
+        self.insert_measurement_unchecked(measurement).map(Some)
+    }
+
+    fn insert_measurement_unchecked(
+        &self,
+        measurement: &MeasurementInsert,
+    ) -> Result<i64, StorageError> {
         let measured_at = format_time(measurement.measured_at)?;
 
         self.connection.execute(
@@ -226,6 +245,51 @@ impl Storage {
         )?;
 
         Ok(self.connection.last_insert_rowid())
+    }
+
+    fn has_recent_matching_measurement(
+        &self,
+        measurement: &MeasurementInsert,
+        debounce_window: Duration,
+    ) -> Result<bool, StorageError> {
+        let mut statement = self.connection.prepare(
+            "
+            SELECT measured_at
+            FROM measurements
+            WHERE (device_id = ?1 OR (device_id IS NULL AND ?1 IS NULL))
+              AND weight_kg IS ?2
+              AND impedance IS ?3
+              AND encrypted_impedance IS ?4
+              AND stable = ?5
+            ORDER BY measured_at DESC, id DESC
+            LIMIT 8
+            ",
+        )?;
+        let stable = if measurement.stable { 1_i64 } else { 0_i64 };
+        let rows = statement.query_map(
+            params![
+                measurement.device_id,
+                measurement.weight_kg,
+                measurement.impedance,
+                measurement.encrypted_impedance,
+                stable
+            ],
+            |row| parse_time_from_row(row, 0),
+        )?;
+        let threshold_ms = debounce_window.whole_milliseconds().abs();
+
+        for row in rows {
+            let measured_at = row?;
+            let delta_ms = (measurement.measured_at - measured_at)
+                .whole_milliseconds()
+                .abs();
+
+            if delta_ms <= threshold_ms {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     pub fn insert_app_event(&self, event: &AppEventInsert) -> Result<i64, StorageError> {
@@ -532,6 +596,60 @@ mod tests {
 
         assert_eq!(measurements.len(), 1);
         assert_eq!(measurements[0].weight_kg, Some(53.0));
+    }
+
+    #[test]
+    fn debounces_matching_measurements_within_window() {
+        let storage = Storage::open_in_memory().unwrap();
+        let first_id = storage
+            .insert_measurement_debounced(
+                &MeasurementInsert {
+                    device_id: None,
+                    measured_at: sample_time(),
+                    weight_kg: Some(53.2),
+                    impedance: Some(5180),
+                    encrypted_impedance: Some(5_888_976),
+                    stable: true,
+                    raw_packet_id: None,
+                },
+                Duration::milliseconds(500),
+            )
+            .unwrap();
+        let duplicate_id = storage
+            .insert_measurement_debounced(
+                &MeasurementInsert {
+                    device_id: None,
+                    measured_at: sample_time() + Duration::milliseconds(225),
+                    weight_kg: Some(53.2),
+                    impedance: Some(5180),
+                    encrypted_impedance: Some(5_888_976),
+                    stable: true,
+                    raw_packet_id: None,
+                },
+                Duration::milliseconds(500),
+            )
+            .unwrap();
+        let later_id = storage
+            .insert_measurement_debounced(
+                &MeasurementInsert {
+                    device_id: None,
+                    measured_at: sample_time() + Duration::milliseconds(650),
+                    weight_kg: Some(53.2),
+                    impedance: Some(5180),
+                    encrypted_impedance: Some(5_888_976),
+                    stable: true,
+                    raw_packet_id: None,
+                },
+                Duration::milliseconds(500),
+            )
+            .unwrap();
+
+        let measurements = storage.list_recent_measurements(10).unwrap();
+
+        assert!(first_id.is_some());
+        assert_eq!(duplicate_id, None);
+        assert!(later_id.is_some());
+        assert_eq!(measurements.len(), 2);
     }
 
     #[test]

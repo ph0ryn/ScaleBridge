@@ -630,19 +630,33 @@ fn handle_notification(
     );
 
     match parsed {
-        Ok(ParsedPacket::T9120Live { measurement, .. })
-        | Ok(ParsedPacket::T9120HistoryCandidate { measurement, .. }) => {
-            emit(
+        Ok(ParsedPacket::T9120Live { measurement, .. }) => {
+            emit_measurement(
+                device,
+                characteristic_uuid,
+                bytes,
+                OffsetDateTime::now_utc(),
+                measurement,
                 event_sink,
-                WatcherEvent::Measurement {
-                    measurement: MeasurementEvent {
-                        device: device.clone(),
-                        measured_at: OffsetDateTime::now_utc(),
-                        measurement,
-                        raw_bytes: bytes,
-                        characteristic_uuid: Some(characteristic_uuid),
-                    },
-                },
+            );
+            false
+        }
+        Ok(ParsedPacket::T9120HistoryCandidate {
+            measurement,
+            timestamp,
+            ..
+        }) => {
+            let measured_at = timestamp
+                .to_offset_date_time(local_now().offset())
+                .unwrap_or_else(OffsetDateTime::now_utc);
+
+            emit_measurement(
+                device,
+                characteristic_uuid,
+                bytes,
+                measured_at,
+                measurement,
+                event_sink,
             );
             false
         }
@@ -662,6 +676,28 @@ fn handle_notification(
             false
         }
     }
+}
+
+fn emit_measurement(
+    device: &DeviceInfo,
+    characteristic_uuid: String,
+    bytes: Vec<u8>,
+    measured_at: OffsetDateTime,
+    measurement: Measurement,
+    event_sink: &EventSink,
+) {
+    emit(
+        event_sink,
+        WatcherEvent::Measurement {
+            measurement: MeasurementEvent {
+                device: device.clone(),
+                measured_at,
+                measurement,
+                raw_bytes: bytes,
+                characteristic_uuid: Some(characteristic_uuid),
+            },
+        },
+    );
 }
 
 fn collect_services(peripheral: &PlatformPeripheral) -> Vec<ServiceInfo> {

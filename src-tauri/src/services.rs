@@ -1,5 +1,5 @@
 use scalebridge_core::{
-    DeviceInfo, MeasurementEvent, PacketDirection, RawPacketEvent, ScaleWatcher,
+    DeviceInfo, Measurement, PacketDirection, ParsedPacket, RawPacketEvent, ScaleWatcher,
     ScaleWatcherConfig, WatcherEvent, WatcherStatus,
 };
 use scalebridge_storage::{
@@ -7,9 +7,14 @@ use scalebridge_storage::{
     PacketDirection as StoragePacketDirection, RawPacketInsert,
 };
 use tauri::{AppHandle, Emitter};
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 use crate::state::{AppState, BackendState};
+
+struct ParsedMeasurement {
+    measured_at: OffsetDateTime,
+    measurement: Measurement,
+}
 
 pub fn start_watcher(app: AppHandle, app_state: AppState) -> Result<WatcherStatus, String> {
     app_state.with_lock(|state| {
@@ -92,11 +97,10 @@ fn persist_watcher_event(state: &mut BackendState, event: &WatcherEvent) -> Resu
             upsert_device(state, device)?;
         }
         WatcherEvent::RawPacket { packet } => {
-            persist_raw_packet_event(state, packet)?;
+            let raw_packet_id = persist_raw_packet_event(state, packet)?;
+            persist_measurement_from_raw_packet(state, packet, raw_packet_id)?;
         }
-        WatcherEvent::Measurement { measurement } => {
-            persist_measurement_event(state, measurement)?;
-        }
+        WatcherEvent::Measurement { .. } => {}
         WatcherEvent::StatusChanged { status, message } => {
             persist_app_event(
                 state,
@@ -171,35 +175,49 @@ fn persist_raw_packet_event(
         .map_err(|error| error.to_string())
 }
 
-fn persist_measurement_event(
+fn persist_measurement_from_raw_packet(
     state: &mut BackendState,
-    measurement: &MeasurementEvent,
+    packet: &RawPacketEvent,
+    raw_packet_id: i64,
 ) -> Result<(), String> {
-    let device = upsert_device(state, &measurement.device)?;
-    let raw_packet_id = state
-        .storage
-        .insert_raw_packet(&RawPacketInsert {
-            device_id: Some(device.id),
-            seen_at: measurement.measured_at,
-            direction: StoragePacketDirection::Inbound,
-            characteristic_uuid: measurement.characteristic_uuid.clone(),
-            hex: hex::encode(&measurement.raw_bytes),
-            parser: Some("measurement".to_string()),
-            parsed_json: None,
-        })
-        .map_err(|error| error.to_string())?;
+    let Some(parsed) = &packet.parsed else {
+        return Ok(());
+    };
+    let Some(parsed_measurement) = measurement_from_packet(parsed, packet.seen_at) else {
+        return Ok(());
+    };
+    let device = upsert_device(state, &packet.device)?;
 
+    insert_measurement(
+        state,
+        Some(device.id),
+        Some(raw_packet_id),
+        parsed_measurement,
+    )
+}
+
+fn insert_measurement(
+    state: &mut BackendState,
+    device_id: Option<i64>,
+    raw_packet_id: Option<i64>,
+    parsed_measurement: ParsedMeasurement,
+) -> Result<(), String> {
     state
         .storage
-        .insert_measurement(&MeasurementInsert {
-            device_id: Some(device.id),
-            measured_at: measurement.measured_at,
-            weight_kg: Some(measurement.measurement.weight_kg),
-            impedance: Some(i64::from(measurement.measurement.impedance)),
-            encrypted_impedance: Some(i64::from(measurement.measurement.encrypted_impedance)),
-            stable: measurement.measurement.stable(),
-            raw_packet_id: Some(raw_packet_id),
-        })
+        .insert_measurement_debounced(
+            &MeasurementInsert {
+                device_id,
+                measured_at: parsed_measurement.measured_at,
+                weight_kg: Some(parsed_measurement.measurement.weight_kg),
+                impedance: Some(i64::from(parsed_measurement.measurement.impedance)),
+                encrypted_impedance: Some(i64::from(
+                    parsed_measurement.measurement.encrypted_impedance,
+                )),
+                stable: parsed_measurement.measurement.stable(),
+                raw_packet_id,
+            },
+            Duration::milliseconds(500),
+        )
         .map_err(|error| error.to_string())?;
 
     Ok(())
@@ -264,6 +282,35 @@ fn map_packet_direction(direction: PacketDirection) -> StoragePacketDirection {
         PacketDirection::Inbound => StoragePacketDirection::Inbound,
         PacketDirection::Outbound => StoragePacketDirection::Outbound,
     }
+}
+
+fn measurement_from_packet(
+    parsed: &ParsedPacket,
+    fallback_measured_at: OffsetDateTime,
+) -> Option<ParsedMeasurement> {
+    match parsed {
+        ParsedPacket::T9120Live { measurement, .. } => Some(ParsedMeasurement {
+            measured_at: fallback_measured_at,
+            measurement: measurement.clone(),
+        }),
+        ParsedPacket::T9120HistoryCandidate {
+            measurement,
+            timestamp,
+            ..
+        } => Some(ParsedMeasurement {
+            measured_at: timestamp
+                .to_offset_date_time(local_now().offset())
+                .unwrap_or(fallback_measured_at),
+            measurement: measurement.clone(),
+        }),
+        ParsedPacket::ControlAck { .. } | ParsedPacket::Unknown { .. } => None,
+    }
+}
+
+fn local_now() -> OffsetDateTime {
+    time::UtcOffset::current_local_offset()
+        .map(|offset| OffsetDateTime::now_utc().to_offset(offset))
+        .unwrap_or_else(|_| OffsetDateTime::now_utc())
 }
 
 fn format_watcher_status(status: WatcherStatus) -> &'static str {
