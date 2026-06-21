@@ -112,7 +112,6 @@ function renderActiveView(
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
         renderAutostartPanel(data, state, handlers),
-        renderConnectionPanel(data, state, handlers),
       ]);
   }
 }
@@ -140,7 +139,6 @@ function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
         renderSkeletonPanel("Autostart"),
-        renderSkeletonPanel("Connection"),
       ]);
   }
 }

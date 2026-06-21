@@ -244,7 +244,7 @@ table {
 
 .settings-grid {
   align-content: start;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 520px);
 }
 
 .panel,
