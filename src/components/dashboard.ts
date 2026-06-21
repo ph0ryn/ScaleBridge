@@ -10,7 +10,7 @@ import {
 } from "../lib/format";
 import { createElement, createSvgIcon, type Child } from "./dom";
 
-import type { AppState } from "../app/state";
+import type { AppState, DashboardView } from "../app/state";
 import type {
   AppEventRecord,
   DashboardData,
@@ -24,8 +24,17 @@ const PLAY_ICON = "M8 5v14l11-7-11-7Z";
 const STOP_ICON = "M6 6h12v12H6z";
 const REFRESH_ICON = "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6";
 
+const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "history", label: "History" },
+  { id: "devices", label: "Devices" },
+  { id: "raw-log", label: "Raw log" },
+  { id: "settings", label: "Settings" },
+];
+
 export interface DashboardHandlers {
   onRefresh: () => void;
+  onSelectView: (view: DashboardView) => void;
   onSetAutostartEnabled: (enabled: boolean) => void;
   onStartWatcher: () => void;
   onStopWatcher: () => void;
@@ -39,14 +48,13 @@ interface ActionButtonOptions {
 }
 
 export function renderDashboard(state: AppState, handlers: DashboardHandlers): HTMLElement {
-  let content = renderLoadingDashboard(handlers);
+  let content = renderLoadingDashboard(state, handlers);
 
   if (state.data) {
     content = renderLoadedDashboard(state.data, state, handlers);
   }
 
   return createElement("main", { className: "app-shell" }, [
-    renderSidebar(),
     createElement("div", { className: "workspace" }, content),
   ]);
 }
@@ -59,71 +67,130 @@ function renderLoadedDashboard(
   return [
     renderTopbar(data, state, handlers),
     renderAlert(data, state),
-    createElement("section", { className: "hero-grid" }, [
-      renderLatestMeasurement(data),
-      renderConnectionPanel(data, state, handlers),
-      renderAutostartPanel(data, state, handlers),
-    ]),
-    createElement("section", { className: "content-grid" }, [
-      renderMeasurementsPanel(data.measurements),
-      renderDevicesPanel(data.devices),
-      renderRawPacketsPanel(data.rawPackets),
-      renderEventsPanel(data.events),
-    ]),
+    renderActiveView(data, state, handlers),
   ];
 }
 
-function renderLoadingDashboard(handlers: DashboardHandlers): Child[] {
-  return [
-    renderLoadingTopbar(handlers),
-    createElement("section", { className: "hero-grid" }, [
-      renderSkeletonPanel("Latest measurement"),
-      renderSkeletonPanel("Connection"),
-      renderSkeletonPanel("Autostart"),
-    ]),
-    createElement("section", { className: "content-grid" }, [
-      renderSkeletonPanel("Measurement history"),
-      renderSkeletonPanel("Detected devices"),
-      renderSkeletonPanel("Raw log"),
-      renderSkeletonPanel("App events"),
-    ]),
-  ];
+function renderLoadingDashboard(state: AppState, handlers: DashboardHandlers): Child[] {
+  return [renderLoadingTopbar(state, handlers), renderLoadingActiveView(state.activeView)];
 }
 
-function renderSidebar(): HTMLElement {
-  return createElement("aside", { ariaLabel: "ScaleBridge sections", className: "sidebar" }, [
-    createElement("div", { className: "brand" }, [
-      createElement("span", { className: "brand-mark", text: "SB" }),
-      createElement("div", { className: "brand-copy" }, [
-        createElement("strong", { text: "ScaleBridge" }),
-        createElement("span", { text: "Local BLE scale monitor" }),
-      ]),
-    ]),
-    createElement("nav", { className: "nav-list" }, [
-      renderNavLink("Overview", "#overview", true),
-      renderNavLink("History", "#measurements", false),
-      renderNavLink("Devices", "#devices", false),
-      renderNavLink("Raw log", "#raw-log", false),
-      renderNavLink("Settings", "#settings", false),
+function renderBrand(): HTMLElement {
+  return createElement("div", { className: "brand" }, [
+    createElement("span", { className: "brand-mark", text: "SB" }),
+    createElement("div", { className: "brand-copy" }, [
+      createElement("strong", { text: "ScaleBridge" }),
+      createElement("span", { text: "Local BLE scale monitor" }),
     ]),
   ]);
 }
 
-function renderNavLink(label: string, href: string, selected: boolean): HTMLElement {
-  let className = "nav-link";
+function renderActiveView(
+  data: DashboardData,
+  state: AppState,
+  handlers: DashboardHandlers,
+): HTMLElement {
+  switch (state.activeView) {
+    case "overview":
+      return createElement("section", { className: "view-surface overview-grid" }, [
+        renderLatestMeasurement(data),
+        renderConnectionPanel(data, state, handlers),
+        renderEventsPanel(data.events),
+      ]);
+    case "history":
+      return createElement("section", { className: "view-surface single-panel-view" }, [
+        renderMeasurementsPanel(data.measurements),
+      ]);
+    case "devices":
+      return createElement("section", { className: "view-surface single-panel-view" }, [
+        renderDevicesPanel(data.devices),
+      ]);
+    case "raw-log":
+      return createElement("section", { className: "view-surface raw-log-grid" }, [
+        renderRawPacketsPanel(data.rawPackets),
+        renderEventsPanel(data.events),
+      ]);
+    case "settings":
+      return createElement("section", { className: "view-surface settings-grid" }, [
+        renderAutostartPanel(data, state, handlers),
+        renderConnectionPanel(data, state, handlers),
+      ]);
+  }
+}
+
+function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
+  switch (activeView) {
+    case "overview":
+      return createElement("section", { className: "view-surface overview-grid" }, [
+        renderSkeletonPanel("Latest measurement"),
+        renderSkeletonPanel("Connection"),
+        renderSkeletonPanel("App events"),
+      ]);
+    case "history":
+      return createElement("section", { className: "view-surface single-panel-view" }, [
+        renderSkeletonPanel("Measurement history"),
+      ]);
+    case "devices":
+      return createElement("section", { className: "view-surface single-panel-view" }, [
+        renderSkeletonPanel("Detected devices"),
+      ]);
+    case "raw-log":
+      return createElement("section", { className: "view-surface raw-log-grid" }, [
+        renderSkeletonPanel("Raw log"),
+        renderSkeletonPanel("App events"),
+      ]);
+    case "settings":
+      return createElement("section", { className: "view-surface settings-grid" }, [
+        renderSkeletonPanel("Autostart"),
+        renderSkeletonPanel("Connection"),
+      ]);
+  }
+}
+
+function renderViewTabs(activeView: DashboardView, handlers: DashboardHandlers): HTMLElement {
+  return createElement(
+    "div",
+    { ariaLabel: "Dashboard views", className: "view-tabs", role: "tablist" },
+    VIEW_ITEMS.map((item) => renderViewTab(item, activeView, handlers)),
+  );
+}
+
+function renderViewTab(
+  item: { id: DashboardView; label: string },
+  activeView: DashboardView,
+  handlers: DashboardHandlers,
+): HTMLButtonElement {
+  const selected = item.id === activeView;
+  let className = "view-tab";
 
   if (selected) {
-    className = "nav-link selected";
+    className = "view-tab selected";
   }
 
-  const link = createElement("a", {
+  const button = createElement("button", {
     className,
-    text: label,
+    text: item.label,
+    type: "button",
   });
 
-  link.href = href;
+  button.setAttribute("aria-selected", String(selected));
+  button.setAttribute("role", "tab");
 
-  return link;
+  button.addEventListener("click", () => {
+    handlers.onSelectView(item.id);
+  });
+
+  return button;
+}
+
+function renderTopbarTitle(activeView: DashboardView, subtitle: string): HTMLElement {
+  return createElement("div", { className: "topbar-title" }, [
+    renderBrand(),
+    createElement("div", { className: "topbar-copy" }, [
+      createElement("h1", { text: titleForView(activeView) }),
+      createElement("span", { text: subtitle }),
+    ]),
+  ]);
 }
 
 function renderTopbar(
@@ -150,26 +217,24 @@ function renderTopbar(
     onClick: handlers.onRefresh,
   });
 
-  return createElement("header", { className: "topbar", id: "overview" }, [
-    createElement("div", { className: "topbar-copy" }, [
-      createElement("h1", { text: "ScaleBridge" }),
-      createElement("span", {
-        text: `${formatCount(data.measurements.length, "measurement")} loaded`,
-      }),
-    ]),
-    createElement("div", { className: "topbar-actions" }, [
-      renderStatusPill(
-        formatStatusLabel(data.status.watcherStatus),
-        toneForStatus(data.status.watcherStatus),
-      ),
-      startButton,
-      stopButton,
-      refreshButton,
+  return createElement("header", { className: "topbar" }, [
+    renderTopbarTitle(state.activeView, subtitleForView(data, state.activeView)),
+    createElement("div", { className: "topbar-right" }, [
+      renderViewTabs(state.activeView, handlers),
+      createElement("div", { className: "topbar-actions" }, [
+        renderStatusPill(
+          formatStatusLabel(data.status.watcherStatus),
+          toneForStatus(data.status.watcherStatus),
+        ),
+        startButton,
+        stopButton,
+        refreshButton,
+      ]),
     ]),
   ]);
 }
 
-function renderLoadingTopbar(handlers: DashboardHandlers): HTMLElement {
+function renderLoadingTopbar(state: AppState, handlers: DashboardHandlers): HTMLElement {
   const refreshButton = renderActionButton({
     disabled: true,
     iconPath: REFRESH_ICON,
@@ -177,16 +242,46 @@ function renderLoadingTopbar(handlers: DashboardHandlers): HTMLElement {
     onClick: handlers.onRefresh,
   });
 
-  return createElement("header", { className: "topbar", id: "overview" }, [
-    createElement("div", { className: "topbar-copy" }, [
-      createElement("h1", { text: "ScaleBridge" }),
-      createElement("span", { text: "Loading local status" }),
-    ]),
-    createElement("div", { className: "topbar-actions" }, [
-      renderStatusPill("Loading", "neutral"),
-      refreshButton,
+  return createElement("header", { className: "topbar" }, [
+    renderTopbarTitle(state.activeView, "Loading local status"),
+    createElement("div", { className: "topbar-right" }, [
+      renderViewTabs(state.activeView, handlers),
+      createElement("div", { className: "topbar-actions" }, [
+        renderStatusPill("Loading", "neutral"),
+        refreshButton,
+      ]),
     ]),
   ]);
+}
+
+function titleForView(view: DashboardView): string {
+  switch (view) {
+    case "overview":
+      return "Overview";
+    case "history":
+      return "History";
+    case "devices":
+      return "Devices";
+    case "raw-log":
+      return "Raw log";
+    case "settings":
+      return "Settings";
+  }
+}
+
+function subtitleForView(data: DashboardData, view: DashboardView): string {
+  switch (view) {
+    case "overview":
+      return `${formatStatusLabel(data.status.watcherStatus)} watcher status`;
+    case "history":
+      return `${formatCount(data.measurements.length, "measurement")} loaded`;
+    case "devices":
+      return `${formatCount(data.devices.length, "device")} detected`;
+    case "raw-log":
+      return `${formatCount(data.rawPackets.length, "packet")} and ${formatCount(data.events.length, "event")}`;
+    case "settings":
+      return "Login launch and backend controls";
+  }
 }
 
 function renderAlert(data: DashboardData, state: AppState): HTMLElement {
@@ -319,7 +414,7 @@ function renderMeasurementsPanel(measurements: MeasurementRecord[]): HTMLElement
     body = renderMeasurementsTable(measurements);
   }
 
-  return createElement("section", { className: "panel table-panel span-two", id: "measurements" }, [
+  return createElement("section", { className: "panel table-panel", id: "measurements" }, [
     renderPanelHeader("Measurement history", formatCount(measurements.length, "record")),
     body,
   ]);

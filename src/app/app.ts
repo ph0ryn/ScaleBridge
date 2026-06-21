@@ -3,7 +3,7 @@ import { replaceChildren } from "../components/dom";
 import { loadDashboardData } from "../features/dashboard/data";
 import { subscribeToDashboardEvents } from "../features/dashboard/subscriptions";
 import { setAutostartEnabled, startWatcher, stopWatcher } from "../lib/tauri";
-import { createInitialAppState, type AppState } from "./state";
+import { createInitialAppState, type AppState, type DashboardView } from "./state";
 
 export function mountApp(root: HTMLElement): void {
   const state = createInitialAppState();
@@ -15,6 +15,10 @@ export function mountApp(root: HTMLElement): void {
       renderDashboard(state, {
         onRefresh: () => {
           void refreshDashboard(state, render);
+        },
+        onSelectView: (view: DashboardView) => {
+          state.activeView = view;
+          render();
         },
         onSetAutostartEnabled: (enabled: boolean) => {
           void runAutostartAction(state, render, enabled);
