@@ -157,27 +157,10 @@ table {
   min-width: 0;
 }
 
-.topbar-copy {
-  display: grid;
-  align-content: center;
+.topbar-status {
+  display: flex;
+  align-items: center;
   min-width: 0;
-  padding: 8px 0;
-}
-
-.topbar h1 {
-  margin: 0;
-  color: var(--tsite-black);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  line-height: 1;
-  overflow-wrap: anywhere;
-}
-
-.topbar-copy span {
-  color: var(--tsite-charcoal);
-  font-size: 10px;
-  line-height: normal;
 }
 
 .topbar-right {
@@ -185,13 +168,6 @@ table {
   align-content: center;
   justify-items: end;
   min-width: 0;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .view-tabs {
@@ -684,8 +660,7 @@ table {
   }
 
   .topbar-title,
-  .topbar-right,
-  .topbar-actions {
+  .topbar-right {
     width: 100%;
   }
 
@@ -725,10 +700,6 @@ table {
   .topbar-title {
     flex-direction: column;
     gap: 12px;
-  }
-
-  .topbar h1 {
-    font-size: 24px;
   }
 
   .panel {

@@ -163,12 +163,11 @@ function renderViewTab(
   return button;
 }
 
-function renderTopbarTitle(activeView: DashboardView, subtitle: string): HTMLElement {
+function renderTopbarTitle(statusLabel: string, statusTone: string): HTMLElement {
   return createElement("div", { className: "topbar-title" }, [
     renderBrand(),
-    createElement("div", { className: "topbar-copy" }, [
-      createElement("h1", { text: titleForView(activeView) }),
-      createElement("span", { text: subtitle }),
+    createElement("div", { className: "topbar-status" }, [
+      renderStatusPill(statusLabel, statusTone),
     ]),
   ]);
 }
@@ -179,59 +178,23 @@ function renderTopbar(
   handlers: DashboardHandlers,
 ): HTMLElement {
   return createElement("header", { className: "topbar" }, [
-    renderTopbarTitle(state.activeView, subtitleForView(data, state.activeView)),
+    renderTopbarTitle(
+      formatStatusLabel(data.status.watcherStatus),
+      toneForStatus(data.status.watcherStatus),
+    ),
     createElement("div", { className: "topbar-right" }, [
       renderViewTabs(state.activeView, handlers),
-      createElement("div", { className: "topbar-actions" }, [
-        renderStatusPill(
-          formatStatusLabel(data.status.watcherStatus),
-          toneForStatus(data.status.watcherStatus),
-        ),
-      ]),
     ]),
   ]);
 }
 
 function renderLoadingTopbar(state: AppState, handlers: DashboardHandlers): HTMLElement {
   return createElement("header", { className: "topbar" }, [
-    renderTopbarTitle(state.activeView, "Loading local status"),
+    renderTopbarTitle("Loading", "neutral"),
     createElement("div", { className: "topbar-right" }, [
       renderViewTabs(state.activeView, handlers),
-      createElement("div", { className: "topbar-actions" }, [
-        renderStatusPill("Loading", "neutral"),
-      ]),
     ]),
   ]);
-}
-
-function titleForView(view: DashboardView): string {
-  switch (view) {
-    case "overview":
-      return "Overview";
-    case "history":
-      return "History";
-    case "devices":
-      return "Devices";
-    case "raw-log":
-      return "Raw log";
-    case "settings":
-      return "Settings";
-  }
-}
-
-function subtitleForView(data: DashboardData, view: DashboardView): string {
-  switch (view) {
-    case "overview":
-      return `${formatStatusLabel(data.status.watcherStatus)} watcher status`;
-    case "history":
-      return `${formatCount(data.measurements.length, "measurement")} loaded`;
-    case "devices":
-      return `${formatCount(data.devices.length, "device")} detected`;
-    case "raw-log":
-      return `${formatCount(data.rawPackets.length, "packet")} and ${formatCount(data.events.length, "event")}`;
-    case "settings":
-      return "Login launch and backend controls";
-  }
 }
 
 function renderAlert(data: DashboardData, state: AppState): HTMLElement {
