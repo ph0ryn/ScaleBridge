@@ -1,10 +1,9 @@
 export type WatcherStatus =
   | "starting"
-  | "scanning"
+  | "watching"
   | "connecting"
   | "connected"
   | "subscribed"
-  | "idle"
   | "stopping"
   | "stopped";
 

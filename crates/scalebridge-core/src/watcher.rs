@@ -27,11 +27,10 @@ pub enum PacketDirection {
 #[serde(rename_all = "snake_case")]
 pub enum WatcherStatus {
     Starting,
-    Scanning,
+    Watching,
     Connecting,
     Connected,
     Subscribed,
-    Idle,
     Stopping,
     Stopped,
 }
@@ -277,7 +276,7 @@ async fn run_watcher(
         emit(
             &event_sink,
             WatcherEvent::StatusChanged {
-                status: WatcherStatus::Idle,
+                status: WatcherStatus::Watching,
                 message: None,
             },
         );
@@ -308,7 +307,7 @@ async fn scan_adapter(
     emit(
         event_sink,
         WatcherEvent::StatusChanged {
-            status: WatcherStatus::Scanning,
+            status: WatcherStatus::Watching,
             message: adapter_info,
         },
     );
@@ -813,6 +812,13 @@ async fn wait_or_stop(duration: Duration, stop_receiver: &mut watch::Receiver<bo
 mod tests {
     use super::*;
     use crate::{DeviceProfile, Measurement, WeightStatus};
+
+    #[test]
+    fn serializes_watching_status_as_public_status() {
+        let json = serde_json::to_value(WatcherStatus::Watching).unwrap();
+
+        assert_eq!(json, "watching");
+    }
 
     #[test]
     fn serializes_measurement_event_time_as_rfc3339_string() {

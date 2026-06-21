@@ -173,11 +173,10 @@ fn format_status(status: WeightStatus) -> &'static str {
 fn format_watcher_status(status: WatcherStatus) -> &'static str {
     match status {
         WatcherStatus::Starting => "starting",
-        WatcherStatus::Scanning => "scanning",
+        WatcherStatus::Watching => "watching",
         WatcherStatus::Connecting => "connecting",
         WatcherStatus::Connected => "connected",
         WatcherStatus::Subscribed => "subscribed",
-        WatcherStatus::Idle => "idle",
         WatcherStatus::Stopping => "stopping",
         WatcherStatus::Stopped => "stopped",
     }

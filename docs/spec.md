@@ -358,6 +358,20 @@ start_watcher() -> WatcherStatus
 stop_watcher() -> WatcherStatus
 ```
 
+Public WatcherStatus values:
+
+```text
+starting
+watching
+connecting
+connected
+subscribed
+stopping
+stopped
+```
+
+Scanning and rescan-wait phases are both exposed as `watching`.
+
 Backend events:
 
 ```text

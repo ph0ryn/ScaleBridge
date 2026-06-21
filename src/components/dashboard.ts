@@ -462,13 +462,12 @@ function toneForStatus(status: WatcherStatus): string {
   switch (status) {
     case "connected":
     case "subscribed":
+    case "watching":
       return "good";
     case "connecting":
-    case "scanning":
     case "starting":
     case "stopping":
       return "warn";
-    case "idle":
     case "stopped":
       return "neutral";
   }
