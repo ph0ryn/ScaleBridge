@@ -311,7 +311,8 @@ function renderAutostartPanel(
         createElement("strong", { text: "Login launch" }),
         createElement("span", { text: "Managed by the Tauri backend" }),
       ]),
-      renderAutostartSwitch({
+      renderSettingSwitch({
+        ariaLabel: "Toggle login launch",
         disabled: state.saving || !state.backendAvailable,
         enabled: data.autostart.enabled,
         label: autostartLabel,
@@ -341,20 +342,40 @@ function renderScanIntervalForm(
   const disabled = state.saving || !state.backendAvailable;
   const windowOpenInput = renderScanIntervalInput(settings.windowOpenSeconds, disabled);
   const backgroundInput = renderScanIntervalInput(settings.backgroundSeconds, disabled);
-  const form = createElement("div", { className: "scan-interval-form" }, [
-    renderScanIntervalControl(
-      "Window open",
-      "Scan while Settings or dashboard is visible",
+  const controls: HTMLElement[] = [
+    renderContinuousScanControl({
+      backgroundInput,
+      disabled,
+      handlers,
+      settings,
       windowOpenInput,
-    ),
+    }),
     renderScanIntervalControl(
       "Background",
-      "Scan while only the tray app is running",
+      "Wait after a connection or while only the tray app is running",
       backgroundInput,
     ),
-  ]);
+  ];
+
+  if (!settings.windowOpenContinuousScan) {
+    controls.splice(
+      1,
+      0,
+      renderScanIntervalControl(
+        "Window open",
+        "Wait between timed scans while Settings or dashboard is visible",
+        windowOpenInput,
+      ),
+    );
+  }
+
+  const form = createElement("div", { className: "scan-interval-form" }, controls);
   const apply = (): void => {
-    const nextSettings = readScanIntervalSettings(windowOpenInput, backgroundInput);
+    const nextSettings = readScanIntervalSettings(
+      windowOpenInput,
+      backgroundInput,
+      settings.windowOpenContinuousScan,
+    );
 
     if (nextSettings) {
       handlers.onSetScanIntervalSettings(nextSettings);
@@ -365,6 +386,49 @@ function renderScanIntervalForm(
   backgroundInput.addEventListener("change", apply);
 
   return form;
+}
+
+function renderContinuousScanControl(options: {
+  backgroundInput: HTMLInputElement;
+  disabled: boolean;
+  handlers: DashboardHandlers;
+  settings: ScanIntervalSettings;
+  windowOpenInput: HTMLInputElement;
+}): HTMLElement {
+  let label = "Off";
+  let tone = "neutral";
+
+  if (options.settings.windowOpenContinuousScan) {
+    label = "On";
+    tone = "good";
+  }
+
+  const apply = (enabled: boolean): void => {
+    const nextSettings = readScanIntervalSettings(
+      options.windowOpenInput,
+      options.backgroundInput,
+      enabled,
+    );
+
+    if (nextSettings) {
+      options.handlers.onSetScanIntervalSettings(nextSettings);
+    }
+  };
+
+  return createElement("div", { className: "setting-row" }, [
+    createElement("div", { className: "setting-copy" }, [
+      createElement("strong", { text: "Window open continuous scan" }),
+      createElement("span", { text: "Keep BLE scan active until a scale is found" }),
+    ]),
+    renderSettingSwitch({
+      ariaLabel: "Toggle window open continuous scan",
+      disabled: options.disabled,
+      enabled: options.settings.windowOpenContinuousScan,
+      label,
+      onToggle: apply,
+      tone,
+    }),
+  ]);
 }
 
 function renderScanIntervalControl(
@@ -405,6 +469,7 @@ function renderScanIntervalInput(value: number, disabled: boolean): HTMLInputEle
 function readScanIntervalSettings(
   windowOpenInput: HTMLInputElement,
   backgroundInput: HTMLInputElement,
+  windowOpenContinuousScan: boolean,
 ): ScanIntervalSettings | null {
   const windowOpenSeconds = readScanIntervalValue(windowOpenInput);
   const backgroundSeconds = readScanIntervalValue(backgroundInput);
@@ -415,6 +480,7 @@ function readScanIntervalSettings(
 
   return {
     backgroundSeconds,
+    windowOpenContinuousScan,
     windowOpenSeconds,
   };
 }
@@ -558,7 +624,8 @@ function renderStatusPill(label: string, tone: string): HTMLElement {
   return createElement("span", { className: `status-pill tone-${tone}`, text: label });
 }
 
-function renderAutostartSwitch(options: {
+function renderSettingSwitch(options: {
+  ariaLabel: string;
   disabled: boolean;
   enabled: boolean;
   label: string;
@@ -566,7 +633,7 @@ function renderAutostartSwitch(options: {
   tone: string;
 }): HTMLButtonElement {
   const button = createElement("button", {
-    ariaLabel: "Toggle login launch",
+    ariaLabel: options.ariaLabel,
     className: `switch-control tone-${options.tone}`,
     disabled: options.disabled,
     type: "button",

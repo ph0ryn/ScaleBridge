@@ -1,6 +1,6 @@
 use scalebridge_core::{
     DeviceInfo, Measurement, PacketDirection, ParsedPacket, ProtocolFamily, RawPacketEvent,
-    ScaleWatcher, ScaleWatcherConfig, WatcherEvent, WatcherStatus, WeightStatus,
+    ScaleWatcher, ScaleWatcherConfig, ScanCadence, WatcherEvent, WatcherStatus, WeightStatus,
 };
 use scalebridge_storage::{
     DeviceRecord, DeviceUpsert, MeasurementInsert, PacketDirection as StoragePacketDirection,
@@ -45,17 +45,19 @@ pub fn start_watcher(app: AppHandle, app_state: AppState) -> Result<WatcherStatu
 
 fn watcher_config(app: AppHandle, app_state: AppState) -> ScaleWatcherConfig {
     ScaleWatcherConfig::default()
-        .with_rescan_delay_provider(move || current_rescan_delay(&app, &app_state))
+        .with_scan_cadence_provider(move || current_scan_cadence(&app, &app_state))
 }
 
-fn current_rescan_delay(app: &AppHandle, app_state: &AppState) -> StdDuration {
+fn current_scan_cadence(app: &AppHandle, app_state: &AppState) -> ScanCadence {
     let window_open = app.get_webview_window(window::MAIN_WINDOW_LABEL).is_some();
 
     app_state
-        .with_lock(|state| Ok(state.scan_interval_for_window_open(window_open)))
+        .with_lock(|state| Ok(state.scan_cadence_for_window_open(window_open)))
         .unwrap_or_else(|error| {
             eprintln!("failed to read scan interval settings: {error}");
-            StdDuration::from_secs(10)
+            ScanCadence::Timed {
+                rescan_delay: StdDuration::from_secs(10),
+            }
         })
 }
 

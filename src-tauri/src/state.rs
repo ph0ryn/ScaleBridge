@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use scalebridge_core::{
-    DeviceInfo, Measurement, MeasurementEvent, ScaleWatcherHandle, WatcherStatus,
+    DeviceInfo, Measurement, MeasurementEvent, ScaleWatcherHandle, ScanCadence, WatcherStatus,
 };
 use scalebridge_storage::{Storage, StorageError};
 use serde::{Deserialize, Serialize};
@@ -10,8 +10,10 @@ use time::OffsetDateTime;
 
 const SCAN_WINDOW_OPEN_SECONDS_KEY: &str = "scan.window_open_seconds";
 const SCAN_BACKGROUND_SECONDS_KEY: &str = "scan.background_seconds";
+const SCAN_WINDOW_OPEN_CONTINUOUS_KEY: &str = "scan.window_open_continuous_scan";
 const DEFAULT_WINDOW_OPEN_SCAN_SECONDS: u64 = 2;
 const DEFAULT_BACKGROUND_SCAN_SECONDS: u64 = 10;
+const DEFAULT_WINDOW_OPEN_CONTINUOUS_SCAN: bool = true;
 pub const MIN_SCAN_INTERVAL_SECONDS: u64 = 1;
 pub const MAX_SCAN_INTERVAL_SECONDS: u64 = 3600;
 
@@ -65,6 +67,7 @@ pub struct BackendState {
 pub struct ScanIntervalSettings {
     pub window_open_seconds: u64,
     pub background_seconds: u64,
+    pub window_open_continuous_scan: bool,
 }
 
 impl Default for ScanIntervalSettings {
@@ -72,18 +75,29 @@ impl Default for ScanIntervalSettings {
         Self {
             window_open_seconds: DEFAULT_WINDOW_OPEN_SCAN_SECONDS,
             background_seconds: DEFAULT_BACKGROUND_SCAN_SECONDS,
+            window_open_continuous_scan: DEFAULT_WINDOW_OPEN_CONTINUOUS_SCAN,
         }
     }
 }
 
 impl ScanIntervalSettings {
     #[must_use]
-    pub fn duration_for_window_open(self, window_open: bool) -> Duration {
-        if window_open {
-            return Duration::from_secs(self.window_open_seconds);
+    pub fn cadence_for_window_open(self, window_open: bool) -> ScanCadence {
+        if window_open && self.window_open_continuous_scan {
+            return ScanCadence::Continuous {
+                rescan_delay: Duration::from_secs(self.background_seconds),
+            };
         }
 
-        Duration::from_secs(self.background_seconds)
+        if window_open {
+            return ScanCadence::Timed {
+                rescan_delay: Duration::from_secs(self.window_open_seconds),
+            };
+        }
+
+        ScanCadence::Timed {
+            rescan_delay: Duration::from_secs(self.background_seconds),
+        }
     }
 
     pub fn validate(self) -> Result<Self, String> {
@@ -105,6 +119,11 @@ impl ScanIntervalSettings {
                 SCAN_BACKGROUND_SECONDS_KEY,
                 DEFAULT_BACKGROUND_SCAN_SECONDS,
             )?,
+            window_open_continuous_scan: load_bool_setting(
+                storage,
+                SCAN_WINDOW_OPEN_CONTINUOUS_KEY,
+                DEFAULT_WINDOW_OPEN_CONTINUOUS_SCAN,
+            )?,
         })
     }
 
@@ -116,6 +135,14 @@ impl ScanIntervalSettings {
         storage.set_setting_i64(
             SCAN_BACKGROUND_SECONDS_KEY,
             i64::try_from(self.background_seconds).expect("scan interval fits i64"),
+        )?;
+        storage.set_setting_i64(
+            SCAN_WINDOW_OPEN_CONTINUOUS_KEY,
+            if self.window_open_continuous_scan {
+                1
+            } else {
+                0
+            },
         )
     }
 }
@@ -205,9 +232,9 @@ impl BackendState {
     }
 
     #[must_use]
-    pub fn scan_interval_for_window_open(&self, window_open: bool) -> Duration {
+    pub fn scan_cadence_for_window_open(&self, window_open: bool) -> ScanCadence {
         self.scan_interval_settings
-            .duration_for_window_open(window_open)
+            .cadence_for_window_open(window_open)
     }
 }
 
@@ -240,6 +267,18 @@ fn validate_interval_seconds(label: &str, value: u64) -> Result<(), String> {
     ))
 }
 
+fn load_bool_setting(
+    storage: &Storage,
+    key: &str,
+    default_value: bool,
+) -> Result<bool, StorageError> {
+    let Some(value) = storage.get_setting_i64(key)? else {
+        return Ok(default_value);
+    };
+
+    Ok(value != 0)
+}
+
 fn valid_interval_seconds(value: u64) -> bool {
     (MIN_SCAN_INTERVAL_SECONDS..=MAX_SCAN_INTERVAL_SECONDS).contains(&value)
 }
@@ -259,6 +298,7 @@ mod tests {
 
         assert_eq!(settings.window_open_seconds, 2);
         assert_eq!(settings.background_seconds, 10);
+        assert!(settings.window_open_continuous_scan);
     }
 
     #[test]
@@ -267,6 +307,7 @@ mod tests {
             ScanIntervalSettings {
                 window_open_seconds: 2,
                 background_seconds: 10,
+                window_open_continuous_scan: true,
             }
             .validate()
             .is_ok()
@@ -275,9 +316,87 @@ mod tests {
             ScanIntervalSettings {
                 window_open_seconds: 0,
                 background_seconds: 10,
+                window_open_continuous_scan: true,
             }
             .validate()
             .is_err()
+        );
+    }
+
+    #[test]
+    fn saves_continuous_scan_setting() {
+        let storage = Storage::open_in_memory().unwrap();
+        let state = AppState::new(storage).unwrap();
+        let settings = ScanIntervalSettings {
+            window_open_seconds: 4,
+            background_seconds: 12,
+            window_open_continuous_scan: false,
+        };
+
+        state
+            .with_lock(|state| state.set_scan_interval_settings(settings))
+            .unwrap();
+        let stored = state
+            .with_lock(|state| {
+                ScanIntervalSettings::load(&state.storage).map_err(|error| error.to_string())
+            })
+            .unwrap();
+
+        assert_eq!(stored, settings);
+    }
+
+    #[test]
+    fn returns_continuous_cadence_for_open_window_when_enabled() {
+        let storage = Storage::open_in_memory().unwrap();
+        let state = AppState::new(storage).unwrap();
+
+        let open_window_cadence = state
+            .with_lock(|state| Ok(state.scan_cadence_for_window_open(true)))
+            .unwrap();
+        let background_cadence = state
+            .with_lock(|state| Ok(state.scan_cadence_for_window_open(false)))
+            .unwrap();
+
+        assert_eq!(
+            open_window_cadence,
+            ScanCadence::Continuous {
+                rescan_delay: Duration::from_secs(10),
+            }
+        );
+        assert_eq!(
+            background_cadence,
+            ScanCadence::Timed {
+                rescan_delay: Duration::from_secs(10),
+            }
+        );
+    }
+
+    #[test]
+    fn returns_timed_window_cadence_when_continuous_is_disabled() {
+        let storage = Storage::open_in_memory().unwrap();
+        let state = AppState::new(storage).unwrap();
+
+        state
+            .with_lock(|state| {
+                state.set_scan_interval_settings(ScanIntervalSettings {
+                    window_open_seconds: 3,
+                    background_seconds: 10,
+                    window_open_continuous_scan: false,
+                })?;
+
+                Ok(())
+            })
+            .unwrap();
+
+        let cadence = state
+            .with_lock(|state| Ok(state.scan_cadence_for_window_open(true)))
+            .unwrap();
+
+        assert_eq!(
+            cadence,
+            ScanCadence::Timed {
+                rescan_delay: Duration::from_secs(3),
+            }
         );
     }
 }

@@ -64,6 +64,7 @@ export function createPreviewData(errorMessage: string): DashboardData {
     ],
     scanIntervals: {
       backgroundSeconds: 10,
+      windowOpenContinuousScan: true,
       windowOpenSeconds: 2,
     },
     status: {

@@ -72,6 +72,7 @@ export interface AutostartStatus {
 
 export interface ScanIntervalSettings {
   backgroundSeconds: number;
+  windowOpenContinuousScan: boolean;
   windowOpenSeconds: number;
 }
 

@@ -122,16 +122,37 @@ pub enum WatcherEvent {
     },
 }
 
-type RescanDelayProvider = Arc<dyn Fn() -> Duration + Send + Sync>;
+type ScanCadenceProvider = Arc<dyn Fn() -> ScanCadence + Send + Sync>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanCadence {
+    Timed { rescan_delay: Duration },
+    Continuous { rescan_delay: Duration },
+}
+
+impl ScanCadence {
+    #[must_use]
+    pub fn rescan_delay(self) -> Duration {
+        match self {
+            Self::Timed { rescan_delay } | Self::Continuous { rescan_delay } => rescan_delay,
+        }
+    }
+
+    #[must_use]
+    pub fn continuous(self) -> bool {
+        matches!(self, Self::Continuous { .. })
+    }
+}
 
 #[derive(Clone)]
 pub struct ScaleWatcherConfig {
     pub scan_duration: Duration,
     pub rescan_delay: Duration,
+    pub continuous_scan_poll_interval: Duration,
     pub connect_timeout: Duration,
     pub service_discovery_timeout: Duration,
     pub notification_idle_timeout: Duration,
-    rescan_delay_provider: Option<RescanDelayProvider>,
+    scan_cadence_provider: Option<ScanCadenceProvider>,
 }
 
 impl Default for ScaleWatcherConfig {
@@ -139,10 +160,11 @@ impl Default for ScaleWatcherConfig {
         Self {
             scan_duration: Duration::from_secs(6),
             rescan_delay: Duration::from_secs(10),
+            continuous_scan_poll_interval: Duration::from_secs(1),
             connect_timeout: Duration::from_secs(10),
             service_discovery_timeout: Duration::from_secs(10),
             notification_idle_timeout: Duration::from_secs(30),
-            rescan_delay_provider: None,
+            scan_cadence_provider: None,
         }
     }
 }
@@ -153,12 +175,16 @@ impl fmt::Debug for ScaleWatcherConfig {
             .debug_struct("ScaleWatcherConfig")
             .field("scan_duration", &self.scan_duration)
             .field("rescan_delay", &self.rescan_delay)
+            .field(
+                "continuous_scan_poll_interval",
+                &self.continuous_scan_poll_interval,
+            )
             .field("connect_timeout", &self.connect_timeout)
             .field("service_discovery_timeout", &self.service_discovery_timeout)
             .field("notification_idle_timeout", &self.notification_idle_timeout)
             .field(
-                "rescan_delay_provider",
-                &self.rescan_delay_provider.is_some(),
+                "scan_cadence_provider",
+                &self.scan_cadence_provider.is_some(),
             )
             .finish()
     }
@@ -166,18 +192,26 @@ impl fmt::Debug for ScaleWatcherConfig {
 
 impl ScaleWatcherConfig {
     #[must_use]
-    pub fn with_rescan_delay_provider<F>(mut self, provider: F) -> Self
+    pub fn with_scan_cadence_provider<F>(mut self, provider: F) -> Self
     where
-        F: Fn() -> Duration + Send + Sync + 'static,
+        F: Fn() -> ScanCadence + Send + Sync + 'static,
     {
-        self.rescan_delay_provider = Some(Arc::new(provider));
+        self.scan_cadence_provider = Some(Arc::new(provider));
         self
     }
 
+    #[must_use]
+    pub fn current_scan_cadence(&self) -> ScanCadence {
+        self.scan_cadence_provider.as_ref().map_or(
+            ScanCadence::Timed {
+                rescan_delay: self.rescan_delay,
+            },
+            |provider| provider(),
+        )
+    }
+
     fn current_rescan_delay(&self) -> Duration {
-        self.rescan_delay_provider
-            .as_ref()
-            .map_or(self.rescan_delay, |provider| provider())
+        self.current_scan_cadence().rescan_delay()
     }
 }
 
@@ -342,6 +376,22 @@ async fn scan_adapter(
     event_sink: &EventSink,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> Result<(), WatcherError> {
+    match config.current_scan_cadence() {
+        ScanCadence::Timed { .. } => {
+            scan_adapter_timed(adapter, config, event_sink, stop_receiver).await
+        }
+        ScanCadence::Continuous { .. } => {
+            scan_adapter_continuous(adapter, config, event_sink, stop_receiver).await
+        }
+    }
+}
+
+async fn scan_adapter_timed(
+    adapter: &Adapter,
+    config: &ScaleWatcherConfig,
+    event_sink: &EventSink,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> Result<(), WatcherError> {
     let adapter_info = adapter.adapter_info().await.ok();
     emit(
         event_sink,
@@ -352,6 +402,7 @@ async fn scan_adapter(
     );
 
     adapter.start_scan(ScanFilter::default()).await?;
+    let mut scan_active = true;
 
     if wait_or_stop(config.scan_duration, stop_receiver).await {
         let _ = adapter.stop_scan().await;
@@ -376,23 +427,98 @@ async fn scan_adapter(
             },
         );
 
-        match device.profile.family {
-            ProtocolFamily::T9120 => {
-                watch_t9120_device(&peripheral, device, config, event_sink, stop_receiver).await?;
-            }
-            ProtocolFamily::Fff0Unknown
-            | ProtocolFamily::T9140V1
-            | ProtocolFamily::T9140V2
-            | ProtocolFamily::T9140V3
-            | ProtocolFamily::T9148OrT9149
-            | ProtocolFamily::T9150OrT9130 => {
-                discover_candidate_services(&peripheral, device, config, event_sink).await?;
-            }
-            ProtocolFamily::Unknown => {}
+        if scan_active {
+            let _ = adapter.stop_scan().await;
+            scan_active = false;
         }
+
+        handle_profiled_peripheral(&peripheral, device, config, event_sink, stop_receiver).await?;
     }
 
-    let _ = adapter.stop_scan().await;
+    if scan_active {
+        let _ = adapter.stop_scan().await;
+    }
+
+    Ok(())
+}
+
+async fn scan_adapter_continuous(
+    adapter: &Adapter,
+    config: &ScaleWatcherConfig,
+    event_sink: &EventSink,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> Result<(), WatcherError> {
+    let adapter_info = adapter.adapter_info().await.ok();
+    emit(
+        event_sink,
+        WatcherEvent::StatusChanged {
+            status: WatcherStatus::Watching,
+            message: adapter_info,
+        },
+    );
+
+    adapter.start_scan(ScanFilter::default()).await?;
+
+    loop {
+        if !config.current_scan_cadence().continuous() {
+            let _ = adapter.stop_scan().await;
+            return Ok(());
+        }
+
+        if wait_or_stop(config.continuous_scan_poll_interval, stop_receiver).await {
+            let _ = adapter.stop_scan().await;
+            return Ok(());
+        }
+
+        let peripherals = adapter.peripherals().await?;
+
+        for peripheral in peripherals {
+            if *stop_receiver.borrow() {
+                let _ = adapter.stop_scan().await;
+                return Ok(());
+            }
+
+            let Some(device) = inspect_peripheral(&peripheral).await? else {
+                continue;
+            };
+
+            emit(
+                event_sink,
+                WatcherEvent::DeviceSeen {
+                    device: device.clone(),
+                },
+            );
+
+            let _ = adapter.stop_scan().await;
+            handle_profiled_peripheral(&peripheral, device, config, event_sink, stop_receiver)
+                .await?;
+
+            return Ok(());
+        }
+    }
+}
+
+async fn handle_profiled_peripheral(
+    peripheral: &PlatformPeripheral,
+    device: DeviceInfo,
+    config: &ScaleWatcherConfig,
+    event_sink: &EventSink,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> Result<(), WatcherError> {
+    match device.profile.family {
+        ProtocolFamily::T9120 => {
+            watch_t9120_device(peripheral, device, config, event_sink, stop_receiver).await?;
+        }
+        ProtocolFamily::Fff0Unknown
+        | ProtocolFamily::T9140V1
+        | ProtocolFamily::T9140V2
+        | ProtocolFamily::T9140V3
+        | ProtocolFamily::T9148OrT9149
+        | ProtocolFamily::T9150OrT9130 => {
+            discover_candidate_services(peripheral, device, config, event_sink).await?;
+        }
+        ProtocolFamily::Unknown => {}
+    }
 
     Ok(())
 }
@@ -886,5 +1012,32 @@ mod tests {
         let json = serde_json::to_value(event).unwrap();
 
         assert!(json["measured_at"].is_string());
+    }
+
+    #[test]
+    fn uses_default_timed_scan_cadence() {
+        let config = ScaleWatcherConfig::default();
+
+        assert_eq!(
+            config.current_scan_cadence(),
+            ScanCadence::Timed {
+                rescan_delay: Duration::from_secs(10),
+            }
+        );
+    }
+
+    #[test]
+    fn uses_scan_cadence_provider() {
+        let config =
+            ScaleWatcherConfig::default().with_scan_cadence_provider(|| ScanCadence::Continuous {
+                rescan_delay: Duration::from_secs(12),
+            });
+
+        assert_eq!(
+            config.current_scan_cadence(),
+            ScanCadence::Continuous {
+                rescan_delay: Duration::from_secs(12),
+            }
+        );
     }
 }
