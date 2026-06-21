@@ -47,6 +47,13 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running ScaleBridge");
+        .build(tauri::generate_context!())
+        .expect("error while building ScaleBridge")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+                if code.is_none() && window::consume_close_exit_request() {
+                    api.prevent_exit();
+                }
+            }
+        });
 }

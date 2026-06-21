@@ -1,6 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{AppHandle, Manager, WebviewWindow, WindowEvent};
 
 const MAIN_WINDOW_LABEL: &str = "main";
+static PREVENT_NEXT_CLOSE_EXIT: AtomicBool = AtomicBool::new(false);
+
+pub fn consume_close_exit_request() -> bool {
+    PREVENT_NEXT_CLOSE_EXIT.swap(false, Ordering::SeqCst)
+}
 
 pub fn show_main_window(app: &AppHandle) -> Result<(), String> {
     let window = match app.get_webview_window(MAIN_WINDOW_LABEL) {
@@ -45,7 +52,9 @@ fn destroy_on_close(window: &WebviewWindow) {
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
+            PREVENT_NEXT_CLOSE_EXIT.store(true, Ordering::SeqCst);
             if let Err(error) = window_to_destroy.destroy() {
+                PREVENT_NEXT_CLOSE_EXIT.store(false, Ordering::SeqCst);
                 eprintln!("failed to destroy main window: {error}");
             }
         }
