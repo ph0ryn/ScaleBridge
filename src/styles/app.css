@@ -269,7 +269,7 @@ table {
 }
 
 .overview-grid {
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .single-panel-view {
@@ -308,34 +308,9 @@ table {
   height: 100%;
 }
 
-.connection-panel,
 .autostart-panel,
 .raw-log-grid > .panel:last-child {
   background: var(--tsite-card);
-}
-
-.connection-panel {
-  gap: 12px;
-}
-
-.connection-panel .panel-header {
-  gap: 12px;
-  padding-bottom: 8px;
-}
-
-.connection-panel .panel-header h2 {
-  font-size: 12px;
-  font-weight: 300;
-  line-height: 18px;
-}
-
-.connection-panel .panel-header span {
-  font-size: 10px;
-  text-align: right;
-}
-
-.connection-panel .status-pill {
-  justify-self: stretch;
 }
 
 .single-panel-view > .panel,
@@ -437,18 +412,6 @@ table {
   font-size: 12px;
   font-weight: 300;
   line-height: 18px;
-}
-
-.connection-body {
-  display: grid;
-  gap: 12px;
-}
-
-.connection-body p {
-  margin: 0;
-  color: var(--tsite-black);
-  font-size: 10px;
-  line-height: normal;
 }
 
 .setting-row {

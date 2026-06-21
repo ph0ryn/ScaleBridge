@@ -20,8 +20,6 @@ import type {
   WatcherStatus,
 } from "../lib/types";
 
-const PLAY_ICON = "M8 5v14l11-7-11-7Z";
-const STOP_ICON = "M6 6h12v12H6z";
 const REFRESH_ICON = "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6";
 
 const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
@@ -36,8 +34,6 @@ export interface DashboardHandlers {
   onRefresh: () => void;
   onSelectView: (view: DashboardView) => void;
   onSetAutostartEnabled: (enabled: boolean) => void;
-  onStartWatcher: () => void;
-  onStopWatcher: () => void;
 }
 
 interface ActionButtonOptions {
@@ -94,7 +90,6 @@ function renderActiveView(
     case "overview":
       return createElement("section", { className: "view-surface overview-grid" }, [
         renderLatestMeasurement(data),
-        renderConnectionPanel(data, state, handlers),
       ]);
     case "history":
       return createElement("section", { className: "view-surface single-panel-view" }, [
@@ -121,7 +116,6 @@ function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
     case "overview":
       return createElement("section", { className: "view-surface overview-grid" }, [
         renderSkeletonPanel("Latest measurement"),
-        renderSkeletonPanel("Connection"),
       ]);
     case "history":
       return createElement("section", { className: "view-surface single-panel-view" }, [
@@ -194,18 +188,6 @@ function renderTopbar(
   state: AppState,
   handlers: DashboardHandlers,
 ): HTMLElement {
-  const startButton = renderActionButton({
-    disabled: data.status.watcherRunning || state.saving || !state.backendAvailable,
-    iconPath: PLAY_ICON,
-    label: "Start",
-    onClick: handlers.onStartWatcher,
-  });
-  const stopButton = renderActionButton({
-    disabled: !data.status.watcherRunning || state.saving || !state.backendAvailable,
-    iconPath: STOP_ICON,
-    label: "Stop",
-    onClick: handlers.onStopWatcher,
-  });
   const refreshButton = renderActionButton({
     disabled: state.loading,
     iconPath: REFRESH_ICON,
@@ -222,8 +204,6 @@ function renderTopbar(
           formatStatusLabel(data.status.watcherStatus),
           toneForStatus(data.status.watcherStatus),
         ),
-        startButton,
-        stopButton,
         refreshButton,
       ]),
     ]),
@@ -336,39 +316,6 @@ function renderLatestMeasurement(data: DashboardData): HTMLElement {
       renderMetric("Impedance", formatImpedance(impedance), "neutral"),
       renderMetric("Measured", formatDateTime(measuredAt), "neutral"),
     ]),
-  ]);
-}
-
-function renderConnectionPanel(
-  data: DashboardData,
-  state: AppState,
-  handlers: DashboardHandlers,
-): HTMLElement {
-  const status = data.status.watcherStatus;
-  const statusText = formatStatusLabel(status);
-  const statusTone = toneForStatus(status);
-  let runningText = "Watcher task idle";
-
-  if (data.status.watcherRunning) {
-    runningText = "Watcher task active";
-  }
-
-  const refreshButton = renderActionButton({
-    disabled: state.loading,
-    iconPath: REFRESH_ICON,
-    label: "Refresh",
-    onClick: handlers.onRefresh,
-  });
-
-  return createElement("section", { className: "panel connection-panel" }, [
-    renderPanelHeader("Connection status", runningText),
-    createElement("div", { className: "connection-body" }, [
-      renderStatusPill(statusText, statusTone),
-      createElement("p", {
-        text: data.status.lastError ?? "BLE watcher state is maintained by the Rust backend.",
-      }),
-    ]),
-    createElement("div", { className: "inline-actions" }, [refreshButton]),
   ]);
 }
 
