@@ -79,7 +79,7 @@ BLEのscan、接続、notify購読、write、parseはRust coreで行うこと。
 
 ### R4: ローカル保存
 
-測定値、raw packet、device、app eventをSQLiteへ保存すること。
+測定値、raw packet、deviceをSQLiteへ保存すること。
 UIはDBを直接操作せず、Tauri command経由でbackendから取得すること。
 
 実装方針:
@@ -333,13 +333,6 @@ CREATE TABLE measurements (
   FOREIGN KEY(raw_packet_id) REFERENCES raw_packets(id)
 );
 
-CREATE TABLE app_events (
-  id INTEGER PRIMARY KEY,
-  created_at TEXT NOT NULL,
-  level TEXT NOT NULL,
-  message TEXT NOT NULL,
-  context_json TEXT
-);
 ```
 
 保存方針:
@@ -348,7 +341,7 @@ CREATE TABLE app_events (
 - `dynamic`は測定中のlive状態として保存するが、測定結果UI/APIは`stable`のみを返す。
 - 受信/送信したBLE packetは`raw_packets`へ保存する。
 - 未知packetも捨てない。
-- parse失敗は`app_events`と`raw_packets.parsed_json`で追跡する。
+- parse失敗もraw packetとして保存し、後からparser改善に使えるようにする。
 - stable packetの重複はbackendでdebounceする。
 
 ## Backend API
@@ -359,7 +352,6 @@ Tauri commands:
 get_current_status() -> AppStatus
 list_recent_measurements(limit: u32) -> Vec<Measurement> stable results
 list_devices() -> Vec<Device>
-list_recent_events(limit: u32) -> Vec<AppEvent>
 set_autostart_enabled(enabled: bool) -> AutostartStatus
 get_autostart_status() -> AutostartStatus
 start_watcher() -> WatcherStatus

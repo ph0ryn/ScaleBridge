@@ -94,24 +94,6 @@ pub struct MeasurementInsert {
     pub raw_packet_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AppEventRecord {
-    pub id: i64,
-    #[serde(with = "time::serde::rfc3339")]
-    pub created_at: OffsetDateTime,
-    pub level: String,
-    pub message: String,
-    pub context_json: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppEventInsert {
-    pub created_at: OffsetDateTime,
-    pub level: String,
-    pub message: String,
-    pub context_json: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

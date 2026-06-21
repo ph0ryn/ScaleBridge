@@ -12,7 +12,6 @@ import { createElement, type Child } from "./dom";
 
 import type { AppState, DashboardView } from "../app/state";
 import type {
-  AppEventRecord,
   DashboardData,
   DeviceRecord,
   MeasurementRecord,
@@ -90,9 +89,8 @@ function renderActiveView(
         renderDevicesPanel(data.devices),
       ]);
     case "raw-log":
-      return createElement("section", { className: "view-surface raw-log-grid" }, [
+      return createElement("section", { className: "view-surface single-panel-view" }, [
         renderRawPacketsPanel(data.rawPackets),
-        renderEventsPanel(data.events),
       ]);
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
@@ -116,9 +114,8 @@ function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
         renderSkeletonPanel("Detected devices"),
       ]);
     case "raw-log":
-      return createElement("section", { className: "view-surface raw-log-grid" }, [
+      return createElement("section", { className: "view-surface single-panel-view" }, [
         renderSkeletonPanel("Raw log"),
-        renderSkeletonPanel("App events"),
       ]);
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
@@ -379,33 +376,6 @@ function renderRawPacketRow(packet: RawPacketRecord): HTMLElement {
   ]);
 }
 
-function renderEventsPanel(events: AppEventRecord[]): HTMLElement {
-  let list = renderEmptyState("No app events saved yet");
-
-  if (events.length > 0) {
-    list = createElement(
-      "div",
-      { className: "event-list" },
-      events.map((event) => renderEventRow(event)),
-    );
-  }
-
-  return createElement("section", { className: "panel" }, [
-    renderPanelHeader("App events", formatCount(events.length, "event")),
-    list,
-  ]);
-}
-
-function renderEventRow(event: AppEventRecord): HTMLElement {
-  return createElement("article", { className: "event-row" }, [
-    renderStatusPill(event.level, toneForEventLevel(event.level)),
-    createElement("div", { className: "event-copy" }, [
-      createElement("strong", { text: event.message }),
-      createElement("span", { text: formatDateTime(event.created_at) }),
-    ]),
-  ]);
-}
-
 function renderPanelHeader(title: string, meta: string): HTMLElement {
   return createElement("div", { className: "panel-header" }, [
     createElement("h2", { text: title }),
@@ -502,18 +472,6 @@ function toneForStatus(status: WatcherStatus): string {
     case "stopped":
       return "neutral";
   }
-}
-
-function toneForEventLevel(level: string): string {
-  if (level === "error") {
-    return "danger";
-  }
-
-  if (level === "warn") {
-    return "warn";
-  }
-
-  return "neutral";
 }
 
 function countServices(serviceUuidsJson: string): number {

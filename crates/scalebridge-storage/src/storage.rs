@@ -5,8 +5,8 @@ use thiserror::Error;
 use time::{Duration, OffsetDateTime};
 
 use crate::{
-    AppEventInsert, AppEventRecord, DeviceRecord, DeviceUpsert, MeasurementInsert,
-    MeasurementRecord, PacketDirection, RawPacketInsert, RawPacketRecord,
+    DeviceRecord, DeviceUpsert, MeasurementInsert, MeasurementRecord, PacketDirection,
+    RawPacketInsert, RawPacketRecord,
 };
 
 const SCHEMA_VERSION: i64 = 1;
@@ -82,18 +82,9 @@ impl Storage {
               FOREIGN KEY(raw_packet_id) REFERENCES raw_packets(id)
             );
 
-            CREATE TABLE IF NOT EXISTS app_events (
-              id INTEGER PRIMARY KEY,
-              created_at TEXT NOT NULL,
-              level TEXT NOT NULL,
-              message TEXT NOT NULL,
-              context_json TEXT
-            );
-
             CREATE INDEX IF NOT EXISTS idx_devices_address ON devices(address);
             CREATE INDEX IF NOT EXISTS idx_raw_packets_seen_at ON raw_packets(seen_at);
             CREATE INDEX IF NOT EXISTS idx_measurements_measured_at ON measurements(measured_at);
-            CREATE INDEX IF NOT EXISTS idx_app_events_created_at ON app_events(created_at);
             PRAGMA user_version = 1;
             ",
         )?;
@@ -292,30 +283,6 @@ impl Storage {
         Ok(false)
     }
 
-    pub fn insert_app_event(&self, event: &AppEventInsert) -> Result<i64, StorageError> {
-        let created_at = format_time(event.created_at)?;
-
-        self.connection.execute(
-            "
-            INSERT INTO app_events (
-              created_at,
-              level,
-              message,
-              context_json
-            )
-            VALUES (?1, ?2, ?3, ?4)
-            ",
-            params![
-                created_at,
-                event.level.as_str(),
-                event.message.as_str(),
-                event.context_json.as_deref()
-            ],
-        )?;
-
-        Ok(self.connection.last_insert_rowid())
-    }
-
     pub fn list_recent_measurements(
         &self,
         limit: u32,
@@ -359,26 +326,6 @@ impl Storage {
             ",
         )?;
         let rows = statement.query_map([], read_device)?;
-
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(StorageError::from)
-    }
-
-    pub fn list_recent_events(&self, limit: u32) -> Result<Vec<AppEventRecord>, StorageError> {
-        let mut statement = self.connection.prepare(
-            "
-            SELECT
-              id,
-              created_at,
-              level,
-              message,
-              context_json
-            FROM app_events
-            ORDER BY created_at DESC, id DESC
-            LIMIT ?1
-            ",
-        )?;
-        let rows = statement.query_map([i64::from(limit)], read_app_event)?;
 
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::from)
@@ -469,16 +416,6 @@ fn read_measurement(row: &rusqlite::Row<'_>) -> rusqlite::Result<MeasurementReco
         encrypted_impedance: row.get(5)?,
         stable: stable != 0,
         raw_packet_id: row.get(7)?,
-    })
-}
-
-fn read_app_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppEventRecord> {
-    Ok(AppEventRecord {
-        id: row.get(0)?,
-        created_at: parse_time_from_row(row, 1)?,
-        level: row.get(2)?,
-        message: row.get(3)?,
-        context_json: row.get(4)?,
     })
 }
 
@@ -693,25 +630,6 @@ mod tests {
         assert_eq!(duplicate_id, None);
         assert!(later_id.is_some());
         assert_eq!(measurements.len(), 2);
-    }
-
-    #[test]
-    fn inserts_app_event() {
-        let storage = Storage::open_in_memory().unwrap();
-        let event_id = storage
-            .insert_app_event(&AppEventInsert {
-                created_at: sample_time(),
-                level: "info".to_string(),
-                message: "watcher started".to_string(),
-                context_json: Some(r#"{"source":"test"}"#.to_string()),
-            })
-            .unwrap();
-
-        let events = storage.list_recent_events(10).unwrap();
-
-        assert_eq!(events[0].id, event_id);
-        assert_eq!(events[0].level, "info");
-        assert_eq!(events[0].message, "watcher started");
     }
 
     fn sample_device(name: &str) -> DeviceUpsert {

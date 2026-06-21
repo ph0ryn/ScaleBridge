@@ -24,7 +24,6 @@ pub fn run() {
             commands::get_current_status,
             commands::list_recent_measurements,
             commands::list_devices,
-            commands::list_recent_events,
             commands::list_recent_raw_packets,
             commands::start_watcher,
             commands::stop_watcher,

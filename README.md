@@ -11,7 +11,7 @@ window is requested.
 
 - Background BLE watcher for supported eufy scale profiles.
 - On-demand menu bar window instead of an always-running WebView.
-- Local SQLite storage for measurements, devices, raw packets, and app events.
+- Local SQLite storage for measurements, devices, and raw packets.
 - Rust core shared by the desktop app and the debugging CLI.
 - Raw packet capture for future device support and parser fixes.
 - No cloud login or server sync in the core workflow.

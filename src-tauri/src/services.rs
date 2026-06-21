@@ -3,8 +3,8 @@ use scalebridge_core::{
     ScaleWatcherConfig, WatcherEvent, WatcherStatus,
 };
 use scalebridge_storage::{
-    AppEventInsert, DeviceRecord, DeviceUpsert, MeasurementInsert,
-    PacketDirection as StoragePacketDirection, RawPacketInsert,
+    DeviceRecord, DeviceUpsert, MeasurementInsert, PacketDirection as StoragePacketDirection,
+    RawPacketInsert,
 };
 use tauri::{AppHandle, Emitter};
 use time::{Duration, OffsetDateTime};
@@ -100,17 +100,7 @@ fn persist_watcher_event(state: &mut BackendState, event: &WatcherEvent) -> Resu
             let raw_packet_id = persist_raw_packet_event(state, packet)?;
             persist_measurement_from_raw_packet(state, packet, raw_packet_id)?;
         }
-        WatcherEvent::Measurement { .. } => {}
-        WatcherEvent::StatusChanged { status, message } => {
-            persist_app_event(
-                state,
-                "info",
-                &format!("watcher status changed: {}", format_watcher_status(*status)),
-                message
-                    .as_ref()
-                    .map(|message| serde_json::json!({ "message": message }).to_string()),
-            )?;
-        }
+        WatcherEvent::Measurement { .. } | WatcherEvent::StatusChanged { .. } => {}
         WatcherEvent::InitWrite {
             device,
             characteristic_uuid,
@@ -128,22 +118,7 @@ fn persist_watcher_event(state: &mut BackendState, event: &WatcherEvent) -> Resu
 
             persist_raw_packet_event(state, &raw_packet)?;
         }
-        WatcherEvent::ParseWarning {
-            device,
-            message,
-            bytes,
-        } => {
-            let context = serde_json::json!({
-                "device_id": device.id,
-                "hex": hex::encode(bytes),
-            })
-            .to_string();
-
-            persist_app_event(state, "warn", message, Some(context))?;
-        }
-        WatcherEvent::TransportError { message } => {
-            persist_app_event(state, "error", message, None)?;
-        }
+        WatcherEvent::ParseWarning { .. } | WatcherEvent::TransportError { .. } => {}
     }
 
     Ok(())
@@ -223,24 +198,6 @@ fn insert_measurement(
     Ok(())
 }
 
-fn persist_app_event(
-    state: &mut BackendState,
-    level: &str,
-    message: &str,
-    context_json: Option<String>,
-) -> Result<(), String> {
-    state
-        .storage
-        .insert_app_event(&AppEventInsert {
-            created_at: OffsetDateTime::now_utc(),
-            level: level.to_string(),
-            message: message.to_string(),
-            context_json,
-        })
-        .map(|_| ())
-        .map_err(|error| error.to_string())
-}
-
 fn upsert_device(state: &mut BackendState, device: &DeviceInfo) -> Result<DeviceRecord, String> {
     let service_uuids_json =
         serde_json::to_string(&device.service_uuids).map_err(|error| error.to_string())?;
@@ -311,17 +268,4 @@ fn local_now() -> OffsetDateTime {
     time::UtcOffset::current_local_offset()
         .map(|offset| OffsetDateTime::now_utc().to_offset(offset))
         .unwrap_or_else(|_| OffsetDateTime::now_utc())
-}
-
-fn format_watcher_status(status: WatcherStatus) -> &'static str {
-    match status {
-        WatcherStatus::Starting => "starting",
-        WatcherStatus::Scanning => "scanning",
-        WatcherStatus::Connecting => "connecting",
-        WatcherStatus::Connected => "connected",
-        WatcherStatus::Subscribed => "subscribed",
-        WatcherStatus::Idle => "idle",
-        WatcherStatus::Stopping => "stopping",
-        WatcherStatus::Stopped => "stopped",
-    }
 }

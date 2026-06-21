@@ -1,5 +1,5 @@
 use scalebridge_core::WatcherStatus;
-use scalebridge_storage::{AppEventRecord, DeviceRecord, MeasurementRecord, RawPacketRecord};
+use scalebridge_storage::{DeviceRecord, MeasurementRecord, RawPacketRecord};
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
@@ -43,19 +43,6 @@ pub fn list_devices(state: State<'_, AppState>) -> Result<Vec<DeviceRecord>, Str
         state
             .storage
             .list_devices()
-            .map_err(|error| error.to_string())
-    })
-}
-
-#[tauri::command]
-pub fn list_recent_events(
-    state: State<'_, AppState>,
-    limit: u32,
-) -> Result<Vec<AppEventRecord>, String> {
-    state.with_lock(|state| {
-        state
-            .storage
-            .list_recent_events(limit)
             .map_err(|error| error.to_string())
     })
 }

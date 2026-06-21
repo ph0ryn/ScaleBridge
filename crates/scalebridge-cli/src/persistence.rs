@@ -3,11 +3,10 @@ use std::sync::{Arc, Mutex};
 
 use scalebridge_core::{
     DeviceInfo, Measurement, PacketDirection, ParsedPacket, RawPacketEvent, WatcherEvent,
-    WatcherStatus,
 };
 use scalebridge_storage::{
-    AppEventInsert, DeviceRecord, DeviceUpsert, MeasurementInsert,
-    PacketDirection as StoragePacketDirection, RawPacketInsert, Storage,
+    DeviceRecord, DeviceUpsert, MeasurementInsert, PacketDirection as StoragePacketDirection,
+    RawPacketInsert, Storage,
 };
 use time::{Duration, OffsetDateTime};
 
@@ -87,15 +86,7 @@ pub fn persist_watcher_event(storage: &SharedStorage, event: &WatcherEvent) {
                 persist_measurement_from_raw_packet(storage, packet, raw_packet_id)
             })
         }
-        WatcherEvent::Measurement { .. } => Ok(()),
-        WatcherEvent::StatusChanged { status, message } => persist_app_event(
-            storage,
-            "info",
-            &format!("watcher status changed: {}", format_watcher_status(*status)),
-            message
-                .as_ref()
-                .map(|message| serde_json::json!({ "message": message }).to_string()),
-        ),
+        WatcherEvent::Measurement { .. } | WatcherEvent::StatusChanged { .. } => Ok(()),
         WatcherEvent::InitWrite {
             device,
             characteristic_uuid,
@@ -113,22 +104,7 @@ pub fn persist_watcher_event(storage: &SharedStorage, event: &WatcherEvent) {
 
             persist_raw_packet_event(storage, &raw_packet).map(|_| ())
         }
-        WatcherEvent::ParseWarning {
-            device,
-            message,
-            bytes,
-        } => {
-            let context = serde_json::json!({
-                "device_id": device.id,
-                "hex": hex::encode(bytes),
-            })
-            .to_string();
-
-            persist_app_event(storage, "warn", message, Some(context))
-        }
-        WatcherEvent::TransportError { message } => {
-            persist_app_event(storage, "error", message, None)
-        }
+        WatcherEvent::ParseWarning { .. } | WatcherEvent::TransportError { .. } => Ok(()),
     };
 
     if let Err(error) = result {
@@ -212,25 +188,6 @@ fn insert_measurement(
     Ok(())
 }
 
-fn persist_app_event(
-    storage: &SharedStorage,
-    level: &str,
-    message: &str,
-    context_json: Option<String>,
-) -> Result<(), String> {
-    storage
-        .lock()
-        .map_err(|error| error.to_string())?
-        .insert_app_event(&AppEventInsert {
-            created_at: OffsetDateTime::now_utc(),
-            level: level.to_string(),
-            message: message.to_string(),
-            context_json,
-        })
-        .map(|_| ())
-        .map_err(|error| error.to_string())
-}
-
 fn upsert_device(storage: &SharedStorage, device: &DeviceInfo) -> Result<DeviceRecord, String> {
     let service_uuids_json =
         serde_json::to_string(&device.service_uuids).map_err(|error| error.to_string())?;
@@ -290,18 +247,5 @@ fn parser_name(parsed: &ParsedPacket) -> &'static str {
         ParsedPacket::T9120HistoryCandidate { .. } => "t9120_history_candidate",
         ParsedPacket::ControlAck { .. } => "control_ack",
         ParsedPacket::Unknown { .. } => "unknown",
-    }
-}
-
-fn format_watcher_status(status: WatcherStatus) -> &'static str {
-    match status {
-        WatcherStatus::Starting => "starting",
-        WatcherStatus::Scanning => "scanning",
-        WatcherStatus::Connecting => "connecting",
-        WatcherStatus::Connected => "connected",
-        WatcherStatus::Subscribed => "subscribed",
-        WatcherStatus::Idle => "idle",
-        WatcherStatus::Stopping => "stopping",
-        WatcherStatus::Stopped => "stopped",
     }
 }

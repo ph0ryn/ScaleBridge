@@ -18,22 +18,6 @@ export function createPreviewData(errorMessage: string): DashboardData {
         service_uuids_json: '["0000fff0-0000-1000-8000-00805f9b34fb"]',
       },
     ],
-    events: [
-      {
-        context_json: null,
-        created_at: now.toISOString(),
-        id: 2,
-        level: "warn",
-        message: `Backend preview mode: ${errorMessage}`,
-      },
-      {
-        context_json: null,
-        created_at: previous.toISOString(),
-        id: 1,
-        level: "info",
-        message: "watcher status changed: scanning",
-      },
-    ],
     measurements: [
       {
         device_id: 1,

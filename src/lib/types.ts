@@ -91,18 +91,9 @@ export interface RawPacketRecord {
   parsed_json: string | null;
 }
 
-export interface AppEventRecord {
-  id: number;
-  created_at: string;
-  level: string;
-  message: string;
-  context_json: string | null;
-}
-
 export interface DashboardData {
   autostart: AutostartStatus;
   devices: DeviceRecord[];
-  events: AppEventRecord[];
   rawPackets: RawPacketRecord[];
   measurements: MeasurementRecord[];
   status: AppStatus;

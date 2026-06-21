@@ -220,10 +220,6 @@ table {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.raw-log-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.85fr);
-}
-
 .settings-grid {
   align-content: start;
   grid-template-columns: minmax(300px, 520px);
@@ -252,13 +248,12 @@ table {
   height: 100%;
 }
 
-.autostart-panel,
-.raw-log-grid > .panel:last-child {
+.autostart-panel {
   background: var(--tsite-card);
 }
 
 .single-panel-view > .panel,
-.raw-log-grid > .panel {
+.log-panel {
   overflow: auto;
 }
 
@@ -525,7 +520,6 @@ table {
 }
 
 .device-list,
-.event-list,
 .log-list {
   display: grid;
   gap: 0;
@@ -535,7 +529,6 @@ table {
 }
 
 .device-row,
-.event-row,
 .log-row {
   min-width: 0;
   padding: 12px;
@@ -544,13 +537,11 @@ table {
 }
 
 .device-row:nth-child(even),
-.event-row:nth-child(even),
 .log-row:nth-child(even) {
   background: var(--tsite-light);
 }
 
 .device-row:last-child,
-.event-row:last-child,
 .log-row:last-child {
   border-bottom: 0;
 }
@@ -569,8 +560,7 @@ table {
   min-width: 0;
 }
 
-.device-main strong,
-.event-copy strong {
+.device-main strong {
   overflow: hidden;
   color: var(--tsite-black);
   font-size: 12px;
@@ -582,7 +572,6 @@ table {
 
 .device-main span,
 .device-meta span,
-.event-copy span,
 .log-row-head span {
   color: var(--tsite-charcoal);
   font-size: 10px;
@@ -611,18 +600,6 @@ table {
   line-height: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.event-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-}
-
-.event-copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
 }
 
 .empty-state {
@@ -692,7 +669,6 @@ table {
   }
 
   .overview-grid,
-  .raw-log-grid,
   .settings-grid {
     grid-template-columns: 1fr;
   }

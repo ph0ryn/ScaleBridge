@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type {
-  AppEventRecord,
   AppStatus,
   AutostartStatus,
   DeviceRecord,
@@ -29,10 +28,6 @@ export async function listRecentMeasurements(limit: number): Promise<Measurement
 
 export async function listDevices(): Promise<DeviceRecord[]> {
   return invoke<DeviceRecord[]>("list_devices");
-}
-
-export async function listRecentEvents(limit: number): Promise<AppEventRecord[]> {
-  return invoke<AppEventRecord[]>("list_recent_events", { limit });
 }
 
 export async function listRecentRawPackets(limit: number): Promise<RawPacketRecord[]> {

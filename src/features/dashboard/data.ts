@@ -2,7 +2,6 @@ import {
   getAutostartStatus,
   getCurrentStatus,
   listDevices,
-  listRecentEvents,
   listRecentMeasurements,
   listRecentRawPackets,
 } from "../../lib/tauri";
@@ -11,7 +10,6 @@ import { createPreviewData } from "../../stores/preview-data";
 import type { DashboardData } from "../../lib/types";
 
 const MEASUREMENT_LIMIT = 12;
-const EVENT_LIMIT = 16;
 const RAW_PACKET_LIMIT = 18;
 
 export interface DashboardLoad {
@@ -22,11 +20,10 @@ export interface DashboardLoad {
 
 export async function loadDashboardData(): Promise<DashboardLoad> {
   try {
-    const [status, measurements, devices, events, rawPackets, autostart] = await Promise.all([
+    const [status, measurements, devices, rawPackets, autostart] = await Promise.all([
       getCurrentStatus(),
       listRecentMeasurements(MEASUREMENT_LIMIT),
       listDevices(),
-      listRecentEvents(EVENT_LIMIT),
       listRecentRawPackets(RAW_PACKET_LIMIT),
       getAutostartStatus(),
     ]);
@@ -36,7 +33,6 @@ export async function loadDashboardData(): Promise<DashboardLoad> {
       data: {
         autostart,
         devices,
-        events,
         measurements,
         rawPackets,
         status,
