@@ -1,6 +1,6 @@
 use scalebridge_core::{
-    DeviceInfo, Measurement, PacketDirection, ParsedPacket, RawPacketEvent, ScaleWatcher,
-    ScaleWatcherConfig, WatcherEvent, WatcherStatus,
+    DeviceInfo, Measurement, PacketDirection, ParsedPacket, ProtocolFamily, RawPacketEvent,
+    ScaleWatcher, ScaleWatcherConfig, WatcherEvent, WatcherStatus, WeightStatus,
 };
 use scalebridge_storage::{
     DeviceRecord, DeviceUpsert, MeasurementInsert, PacketDirection as StoragePacketDirection,
@@ -9,7 +9,7 @@ use scalebridge_storage::{
 use tauri::{AppHandle, Emitter};
 use time::{Duration, OffsetDateTime};
 
-use crate::state::{AppState, BackendState};
+use crate::state::{AppState, BackendState, LiveMeasurementPhase, LiveMeasurementStatus};
 
 struct ParsedMeasurement {
     measured_at: OffsetDateTime,
@@ -44,6 +44,7 @@ pub fn stop_watcher(app_state: AppState) -> Result<WatcherStatus, String> {
         }
 
         state.status = WatcherStatus::Stopping;
+        state.live_measurement = LiveMeasurementStatus::idle();
 
         Ok(state.status)
     })
@@ -69,20 +70,57 @@ fn update_state_from_event(state: &mut BackendState, event: &WatcherEvent) {
     match event {
         WatcherEvent::StatusChanged { status, .. } => {
             state.status = *status;
+
+            if *status == WatcherStatus::Stopped {
+                state.live_measurement = LiveMeasurementStatus::idle();
+            }
+        }
+        WatcherEvent::Connected { device } => {
+            if device.profile.family == ProtocolFamily::T9120 {
+                state.live_measurement =
+                    LiveMeasurementStatus::measuring(device.clone(), OffsetDateTime::now_utc());
+            }
+        }
+        WatcherEvent::Disconnected { .. } => {
+            state.live_measurement = LiveMeasurementStatus::idle();
         }
         WatcherEvent::Measurement { measurement } => {
             state.latest_measurement = Some(measurement.clone());
+            state.live_measurement = live_status_from_measurement(state, measurement);
         }
         WatcherEvent::TransportError { message } => {
             state.last_error = Some(message.clone());
+            state.live_measurement = LiveMeasurementStatus::idle();
         }
         WatcherEvent::DeviceSeen { .. }
-        | WatcherEvent::Connected { .. }
-        | WatcherEvent::Disconnected { .. }
         | WatcherEvent::ServicesDiscovered { .. }
         | WatcherEvent::InitWrite { .. }
         | WatcherEvent::RawPacket { .. }
         | WatcherEvent::ParseWarning { .. } => {}
+    }
+}
+
+fn live_status_from_measurement(
+    state: &BackendState,
+    measurement: &scalebridge_core::MeasurementEvent,
+) -> LiveMeasurementStatus {
+    let now = OffsetDateTime::now_utc();
+
+    LiveMeasurementStatus {
+        phase: live_phase_for_weight_status(measurement.measurement.status),
+        device: Some(measurement.device.clone()),
+        measurement: Some(measurement.measurement.clone()),
+        measured_at: Some(measurement.measured_at),
+        started_at: state.live_measurement.started_at.or(Some(now)),
+        updated_at: Some(now),
+    }
+}
+
+fn live_phase_for_weight_status(status: WeightStatus) -> LiveMeasurementPhase {
+    match status {
+        WeightStatus::Stable => LiveMeasurementPhase::Stable,
+        WeightStatus::Dynamic => LiveMeasurementPhase::Measuring,
+        WeightStatus::Overload => LiveMeasurementPhase::Overload,
     }
 }
 
@@ -268,4 +306,175 @@ fn local_now() -> OffsetDateTime {
     time::UtcOffset::current_local_offset()
         .map(|offset| OffsetDateTime::now_utc().to_offset(offset))
         .unwrap_or_else(|_| OffsetDateTime::now_utc())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scalebridge_core::{DeviceProfile, MeasurementEvent};
+    use scalebridge_storage::Storage;
+
+    #[test]
+    fn connected_supported_device_marks_live_measurement_as_measuring() {
+        let mut state = sample_backend_state();
+        let device = sample_device();
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Connected {
+                device: device.clone(),
+            },
+        );
+
+        assert_eq!(
+            state.live_measurement.phase,
+            LiveMeasurementPhase::Measuring
+        );
+        assert_eq!(
+            state
+                .live_measurement
+                .device
+                .as_ref()
+                .map(|device| device.id.as_str()),
+            Some(device.id.as_str())
+        );
+        assert!(state.live_measurement.started_at.is_some());
+        assert!(state.live_measurement.updated_at.is_some());
+        assert!(state.live_measurement.measurement.is_none());
+        assert!(state.live_measurement.measured_at.is_none());
+    }
+
+    #[test]
+    fn measurement_events_update_live_phase_and_value() {
+        let mut state = sample_backend_state();
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Measurement {
+                measurement: sample_measurement_event(WeightStatus::Dynamic),
+            },
+        );
+        assert_eq!(
+            state.live_measurement.phase,
+            LiveMeasurementPhase::Measuring
+        );
+        assert_eq!(
+            state
+                .live_measurement
+                .measurement
+                .as_ref()
+                .map(|value| value.weight_kg),
+            Some(53.2)
+        );
+        assert!(state.live_measurement.measured_at.is_some());
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Measurement {
+                measurement: sample_measurement_event(WeightStatus::Stable),
+            },
+        );
+        assert_eq!(state.live_measurement.phase, LiveMeasurementPhase::Stable);
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Measurement {
+                measurement: sample_measurement_event(WeightStatus::Overload),
+            },
+        );
+        assert_eq!(state.live_measurement.phase, LiveMeasurementPhase::Overload);
+    }
+
+    #[test]
+    fn disconnected_and_stopped_clear_live_measurement() {
+        let mut state = sample_backend_state();
+        let device = sample_device();
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Connected {
+                device: device.clone(),
+            },
+        );
+        update_state_from_event(&mut state, &WatcherEvent::Disconnected { device });
+
+        assert_eq!(state.live_measurement.phase, LiveMeasurementPhase::Idle);
+        assert!(state.live_measurement.device.is_none());
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Measurement {
+                measurement: sample_measurement_event(WeightStatus::Dynamic),
+            },
+        );
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::StatusChanged {
+                status: WatcherStatus::Stopped,
+                message: None,
+            },
+        );
+
+        assert_eq!(state.live_measurement.phase, LiveMeasurementPhase::Idle);
+        assert!(state.live_measurement.device.is_none());
+    }
+
+    #[test]
+    fn transport_error_clears_live_measurement() {
+        let mut state = sample_backend_state();
+
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::Measurement {
+                measurement: sample_measurement_event(WeightStatus::Dynamic),
+            },
+        );
+        update_state_from_event(
+            &mut state,
+            &WatcherEvent::TransportError {
+                message: "lost connection".to_string(),
+            },
+        );
+
+        assert_eq!(state.live_measurement.phase, LiveMeasurementPhase::Idle);
+        assert_eq!(state.last_error.as_deref(), Some("lost connection"));
+    }
+
+    fn sample_backend_state() -> BackendState {
+        BackendState {
+            storage: Storage::open_in_memory().unwrap(),
+            watcher: None,
+            status: WatcherStatus::Stopped,
+            live_measurement: LiveMeasurementStatus::idle(),
+            latest_measurement: None,
+            last_error: None,
+        }
+    }
+
+    fn sample_device() -> DeviceInfo {
+        DeviceInfo {
+            id: "test-device".to_string(),
+            address: "test-address".to_string(),
+            name: Some("test scale".to_string()),
+            service_uuids: Vec::new(),
+            profile: DeviceProfile::t9120(),
+        }
+    }
+
+    fn sample_measurement_event(status: WeightStatus) -> MeasurementEvent {
+        MeasurementEvent {
+            device: sample_device(),
+            measured_at: OffsetDateTime::from_unix_timestamp(1_766_194_280).unwrap(),
+            measurement: Measurement {
+                weight_raw: 532,
+                weight_kg: 53.2,
+                impedance: 5880,
+                encrypted_impedance: 0,
+                fat_mode: 0,
+                status,
+            },
+            raw_bytes: Vec::new(),
+            characteristic_uuid: None,
+        }
+    }
 }

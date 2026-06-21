@@ -53,6 +53,7 @@ function renderLoadedDashboard(
     renderTopbar(data, state, handlers),
     renderAlert(data, state),
     renderActiveView(data, state, handlers),
+    renderLiveMeasurementPopover(data),
   ];
 }
 
@@ -228,11 +229,7 @@ function renderLatestMeasurement(data: DashboardData): HTMLElement {
 
   let measurementMeta = "No stable result";
 
-  if (latestEvent?.measurement.status === "dynamic") {
-    measurementMeta = "Measuring";
-  } else if (latestEvent?.measurement.status === "overload") {
-    measurementMeta = "Overload";
-  } else if (measuredAt) {
+  if (measuredAt) {
     measurementMeta = formatElapsed(measuredAt);
   }
 
@@ -244,6 +241,47 @@ function renderLatestMeasurement(data: DashboardData): HTMLElement {
       renderMetric("Measured", formatDateTime(measuredAt), "neutral"),
     ]),
   ]);
+}
+
+function renderLiveMeasurementPopover(data: DashboardData): HTMLElement {
+  const liveMeasurement = data.status.liveMeasurement;
+
+  if (liveMeasurement.phase !== "measuring") {
+    return createElement("div", { className: "hidden" });
+  }
+
+  let deviceName = "Scale";
+
+  if (liveMeasurement.device) {
+    deviceName = formatDeviceName(liveMeasurement.device.name, liveMeasurement.device.address);
+  }
+
+  const measuredAt = liveMeasurement.measuredAt ?? liveMeasurement.updatedAt;
+
+  return createElement(
+    "aside",
+    { ariaLabel: "Live measurement", className: "live-measurement-overlay" },
+    [
+      createElement("div", { className: "live-measurement-popover" }, [
+        createElement("div", { className: "live-measurement-head" }, [
+          createElement("strong", { text: "Measuring now" }),
+          createElement("span", { text: deviceName }),
+        ]),
+        createElement("div", {
+          className: "live-measurement-readout",
+          text: formatWeight(liveMeasurement.measurement?.weight_kg),
+        }),
+        createElement("div", { className: "live-measurement-details" }, [
+          renderMetric(
+            "Impedance",
+            formatImpedance(liveMeasurement.measurement?.impedance),
+            "neutral",
+          ),
+          renderMetric("Updated", formatDateTime(measuredAt), "neutral"),
+        ]),
+      ]),
+    ],
+  );
 }
 
 function renderAutostartPanel(

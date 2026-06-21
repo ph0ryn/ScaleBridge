@@ -321,6 +321,75 @@ table {
   overflow-wrap: anywhere;
 }
 
+.live-measurement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 20px;
+  background: rgb(0 0 0 / 18%);
+}
+
+.live-measurement-popover {
+  display: grid;
+  gap: 12px;
+  width: min(420px, 100%);
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--tsite-black);
+  background: var(--tsite-white);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 12%);
+  color: var(--tsite-black);
+}
+
+.live-measurement-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--tsite-border);
+}
+
+.live-measurement-head strong {
+  color: var(--tsite-red);
+  font-family: Muli, Mulish, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.live-measurement-head span {
+  overflow: hidden;
+  color: var(--tsite-charcoal);
+  font-size: 10px;
+  line-height: normal;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-measurement-readout {
+  color: var(--tsite-black);
+  font-size: 36px;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.live-measurement-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--tsite-border);
+  border-left: 1px solid var(--tsite-border);
+}
+
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -698,6 +767,18 @@ table {
 
   .weight-readout {
     font-size: 40px;
+  }
+
+  .live-measurement-overlay {
+    padding: 12px;
+  }
+
+  .live-measurement-popover {
+    width: 100%;
+  }
+
+  .live-measurement-details {
+    grid-template-columns: 1fr;
   }
 
   .data-table {

@@ -9,6 +9,8 @@ export type WatcherStatus =
 
 export type WeightStatus = "stable" | "dynamic" | "overload";
 
+export type LiveMeasurementPhase = "idle" | "measuring" | "stable" | "overload";
+
 export type PacketDirection = "inbound" | "outbound";
 
 export interface DeviceProfile {
@@ -43,9 +45,19 @@ export interface MeasurementEvent {
   characteristic_uuid: string | null;
 }
 
+export interface LiveMeasurementStatus {
+  phase: LiveMeasurementPhase;
+  device: DeviceInfo | null;
+  measurement: Measurement | null;
+  measuredAt: string | null;
+  startedAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface AppStatus {
   watcherStatus: WatcherStatus;
   watcherRunning: boolean;
+  liveMeasurement: LiveMeasurementStatus;
   latestMeasurement: MeasurementEvent | null;
   lastError: string | null;
 }

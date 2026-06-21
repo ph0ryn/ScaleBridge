@@ -358,6 +358,17 @@ start_watcher() -> WatcherStatus
 stop_watcher() -> WatcherStatus
 ```
 
+`AppStatus.liveMeasurement`は、接続中のlive計測状態を返します。
+
+```text
+phase: idle | measuring | stable | overload
+device: active device or null
+measurement: latest live measurement value or null
+measuredAt: latest live measurement time or null
+startedAt: live session start time or null
+updatedAt: latest live status update time or null
+```
+
 Public WatcherStatus values:
 
 ```text
