@@ -280,7 +280,7 @@ scale wakes up
 menu bar click
   -> create WebView window if absent
   -> frontend invokes get_current_status()
-  -> frontend invokes list_recent_measurements()
+  -> frontend invokes list_recent_measurements() for stable results
   -> frontend subscribes to live events
 ```
 
@@ -345,6 +345,7 @@ CREATE TABLE app_events (
 保存方針:
 
 - 測定値は正規化して`measurements`へ保存する。
+- `dynamic`は測定中のlive状態として保存するが、測定結果UI/APIは`stable`のみを返す。
 - 受信/送信したBLE packetは`raw_packets`へ保存する。
 - 未知packetも捨てない。
 - parse失敗は`app_events`と`raw_packets.parsed_json`で追跡する。
@@ -356,7 +357,7 @@ Tauri commands:
 
 ```text
 get_current_status() -> AppStatus
-list_recent_measurements(limit: u32) -> Vec<Measurement>
+list_recent_measurements(limit: u32) -> Vec<Measurement> stable results
 list_devices() -> Vec<Device>
 list_recent_events(limit: u32) -> Vec<AppEvent>
 set_autostart_enabled(enabled: bool) -> AutostartStatus

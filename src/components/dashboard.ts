@@ -221,35 +221,28 @@ function renderLatestMeasurement(data: DashboardData): HTMLElement {
   const latestEvent = data.status.latestMeasurement;
   let impedance = latestRecord?.impedance ?? null;
   let measuredAt = latestRecord?.measured_at ?? null;
-  let stable = latestRecord?.stable === true;
   let weight = latestRecord?.weight_kg ?? null;
 
-  if (latestEvent) {
+  if (!latestRecord && latestEvent?.measurement.status === "stable") {
     impedance = latestEvent.measurement.impedance;
     measuredAt = latestEvent.measured_at;
-    stable = latestEvent.measurement.status === "stable";
     weight = latestEvent.measurement.weight_kg;
   }
 
-  let measurementMeta = "No data";
+  let measurementMeta = "No stable result";
 
-  if (measuredAt) {
+  if (latestEvent?.measurement.status === "dynamic") {
+    measurementMeta = "Measuring";
+  } else if (latestEvent?.measurement.status === "overload") {
+    measurementMeta = "Overload";
+  } else if (measuredAt) {
     measurementMeta = formatElapsed(measuredAt);
-  }
-
-  let stableLabel = "Dynamic";
-  let stableTone = "warn";
-
-  if (stable) {
-    stableLabel = "Stable";
-    stableTone = "good";
   }
 
   return createElement("section", { className: "panel latest-panel" }, [
     renderPanelHeader("Latest measurement", measurementMeta),
     createElement("div", { className: "weight-readout", text: formatWeight(weight) }),
     createElement("div", { className: "metric-strip" }, [
-      renderMetric("Stability", stableLabel, stableTone),
       renderMetric("Impedance", formatImpedance(impedance), "neutral"),
       renderMetric("Measured", formatDateTime(measuredAt), "neutral"),
     ]),
@@ -302,24 +295,18 @@ function renderMeasurementsPanel(measurements: MeasurementRecord[]): HTMLElement
 
 function renderMeasurementsTable(measurements: MeasurementRecord[]): HTMLElement {
   return renderTable(
-    ["Time", "Weight", "Impedance", "Status", "Raw"],
+    ["Time", "Weight", "Impedance", "Raw"],
     measurements.map((measurement) => {
       let rawPacketId = "--";
-      let stableLabel = "Dynamic";
 
       if (measurement.raw_packet_id) {
         rawPacketId = `#${measurement.raw_packet_id}`;
-      }
-
-      if (measurement.stable) {
-        stableLabel = "Stable";
       }
 
       return [
         formatDateTime(measurement.measured_at),
         formatWeight(measurement.weight_kg),
         formatImpedance(measurement.impedance),
-        stableLabel,
         rawPacketId,
       ];
     }),

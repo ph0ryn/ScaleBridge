@@ -332,6 +332,7 @@ impl Storage {
               stable,
               raw_packet_id
             FROM measurements
+            WHERE stable = 1
             ORDER BY measured_at DESC, id DESC
             LIMIT ?1
             ",
@@ -596,6 +597,48 @@ mod tests {
 
         assert_eq!(measurements.len(), 1);
         assert_eq!(measurements[0].weight_kg, Some(53.0));
+    }
+
+    #[test]
+    fn lists_recent_measurements_include_only_stable_results() {
+        let storage = Storage::open_in_memory().unwrap();
+        let stable_id = storage
+            .insert_measurement(&MeasurementInsert {
+                device_id: None,
+                measured_at: sample_time(),
+                weight_kg: Some(53.0),
+                impedance: Some(4840),
+                encrypted_impedance: Some(10_466_995),
+                stable: true,
+                raw_packet_id: None,
+            })
+            .unwrap();
+        storage
+            .insert_measurement(&MeasurementInsert {
+                device_id: None,
+                measured_at: sample_time() + time::Duration::seconds(1),
+                weight_kg: Some(53.4),
+                impedance: Some(4810),
+                encrypted_impedance: Some(10_461_220),
+                stable: false,
+                raw_packet_id: None,
+            })
+            .unwrap();
+
+        let measurements = storage.list_recent_measurements(10).unwrap();
+        let dynamic_count: i64 = storage
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM measurements WHERE stable = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(dynamic_count, 1);
+        assert_eq!(measurements.len(), 1);
+        assert_eq!(measurements[0].id, stable_id);
+        assert!(measurements[0].stable);
     }
 
     #[test]
