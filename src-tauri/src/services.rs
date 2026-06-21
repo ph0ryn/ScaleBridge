@@ -6,10 +6,14 @@ use scalebridge_storage::{
     DeviceRecord, DeviceUpsert, MeasurementInsert, PacketDirection as StoragePacketDirection,
     RawPacketInsert,
 };
-use tauri::{AppHandle, Emitter};
+use std::time::Duration as StdDuration;
+use tauri::{AppHandle, Emitter, Manager};
 use time::{Duration, OffsetDateTime};
 
-use crate::state::{AppState, BackendState, LiveMeasurementPhase, LiveMeasurementStatus};
+use crate::{
+    state::{AppState, BackendState, LiveMeasurementPhase, LiveMeasurementStatus},
+    window,
+};
 
 struct ParsedMeasurement {
     measured_at: OffsetDateTime,
@@ -17,6 +21,8 @@ struct ParsedMeasurement {
 }
 
 pub fn start_watcher(app: AppHandle, app_state: AppState) -> Result<WatcherStatus, String> {
+    let config = watcher_config(app.clone(), app_state.clone());
+
     app_state.with_lock(|state| {
         if state.watcher.is_some() {
             return Ok(state.status);
@@ -25,7 +31,7 @@ pub fn start_watcher(app: AppHandle, app_state: AppState) -> Result<WatcherStatu
         state.status = WatcherStatus::Starting;
         let event_app = app.clone();
         let event_state = app_state.clone();
-        let handle = ScaleWatcher::spawn(ScaleWatcherConfig::default(), move |event| {
+        let handle = ScaleWatcher::spawn(config, move |event| {
             if let Err(error) = handle_watcher_event(&event_app, &event_state, event) {
                 eprintln!("watcher event handling failed: {error}");
             }
@@ -35,6 +41,22 @@ pub fn start_watcher(app: AppHandle, app_state: AppState) -> Result<WatcherStatu
 
         Ok(state.status)
     })
+}
+
+fn watcher_config(app: AppHandle, app_state: AppState) -> ScaleWatcherConfig {
+    ScaleWatcherConfig::default()
+        .with_rescan_delay_provider(move || current_rescan_delay(&app, &app_state))
+}
+
+fn current_rescan_delay(app: &AppHandle, app_state: &AppState) -> StdDuration {
+    let window_open = app.get_webview_window(window::MAIN_WINDOW_LABEL).is_some();
+
+    app_state
+        .with_lock(|state| Ok(state.scan_interval_for_window_open(window_open)))
+        .unwrap_or_else(|error| {
+            eprintln!("failed to read scan interval settings: {error}");
+            StdDuration::from_secs(10)
+        })
 }
 
 pub fn stop_watcher(app_state: AppState) -> Result<WatcherStatus, String> {
@@ -448,6 +470,7 @@ mod tests {
             live_measurement: LiveMeasurementStatus::idle(),
             latest_measurement: None,
             last_error: None,
+            scan_interval_settings: Default::default(),
         }
     }
 

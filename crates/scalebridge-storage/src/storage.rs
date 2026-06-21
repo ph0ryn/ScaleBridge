@@ -9,7 +9,7 @@ use crate::{
     RawPacketInsert, RawPacketRecord,
 };
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -82,10 +82,15 @@ impl Storage {
               FOREIGN KEY(raw_packet_id) REFERENCES raw_packets(id)
             );
 
+            CREATE TABLE IF NOT EXISTS app_settings (
+              key TEXT PRIMARY KEY,
+              integer_value INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_devices_address ON devices(address);
             CREATE INDEX IF NOT EXISTS idx_raw_packets_seen_at ON raw_packets(seen_at);
             CREATE INDEX IF NOT EXISTS idx_measurements_measured_at ON measurements(measured_at);
-            PRAGMA user_version = 1;
+            PRAGMA user_version = 2;
             ",
         )?;
 
@@ -355,6 +360,30 @@ impl Storage {
 
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(StorageError::from)
+    }
+
+    pub fn get_setting_i64(&self, key: &str) -> Result<Option<i64>, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT integer_value FROM app_settings WHERE key = ?1",
+                [key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(StorageError::from)
+    }
+
+    pub fn set_setting_i64(&self, key: &str, value: i64) -> Result<(), StorageError> {
+        self.connection.execute(
+            "
+            INSERT INTO app_settings (key, integer_value)
+            VALUES (?1, ?2)
+            ON CONFLICT(key) DO UPDATE SET integer_value = excluded.integer_value
+            ",
+            params![key, value],
+        )?;
+
+        Ok(())
     }
 
     fn get_device(&self, id: i64) -> Result<DeviceRecord, StorageError> {
@@ -630,6 +659,23 @@ mod tests {
         assert_eq!(duplicate_id, None);
         assert!(later_id.is_some());
         assert_eq!(measurements.len(), 2);
+    }
+
+    #[test]
+    fn stores_integer_settings_by_key() {
+        let storage = Storage::open_in_memory().unwrap();
+
+        assert_eq!(storage.get_setting_i64("scan.window").unwrap(), None);
+
+        storage.set_setting_i64("scan.window", 2).unwrap();
+        storage.set_setting_i64("scan.background", 10).unwrap();
+        storage.set_setting_i64("scan.window", 3).unwrap();
+
+        assert_eq!(storage.get_setting_i64("scan.window").unwrap(), Some(3));
+        assert_eq!(
+            storage.get_setting_i64("scan.background").unwrap(),
+            Some(10)
+        );
     }
 
     fn sample_device(name: &str) -> DeviceUpsert {

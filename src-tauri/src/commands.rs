@@ -5,7 +5,7 @@ use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::services;
-use crate::state::{AppState, AppStatus};
+use crate::state::{AppState, AppStatus, ScanIntervalSettings};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,4 +98,19 @@ pub fn set_autostart_enabled(app: AppHandle, enabled: bool) -> Result<AutostartS
     }
 
     get_autostart_status(app)
+}
+
+#[tauri::command]
+pub fn get_scan_interval_settings(
+    state: State<'_, AppState>,
+) -> Result<ScanIntervalSettings, String> {
+    state.with_lock(|state| Ok(state.scan_interval_settings))
+}
+
+#[tauri::command]
+pub fn set_scan_interval_settings(
+    state: State<'_, AppState>,
+    settings: ScanIntervalSettings,
+) -> Result<ScanIntervalSettings, String> {
+    state.with_lock(|state| state.set_scan_interval_settings(settings))
 }

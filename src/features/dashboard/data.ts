@@ -1,6 +1,7 @@
 import {
   getAutostartStatus,
   getCurrentStatus,
+  getScanIntervalSettings,
   listDevices,
   listRecentMeasurements,
   listRecentRawPackets,
@@ -20,13 +21,16 @@ export interface DashboardLoad {
 
 export async function loadDashboardData(): Promise<DashboardLoad> {
   try {
-    const [status, measurements, devices, rawPackets, autostart] = await Promise.all([
-      getCurrentStatus(),
-      listRecentMeasurements(MEASUREMENT_LIMIT),
-      listDevices(),
-      listRecentRawPackets(RAW_PACKET_LIMIT),
-      getAutostartStatus(),
-    ]);
+    const [status, measurements, devices, rawPackets, autostart, scanIntervals] = await Promise.all(
+      [
+        getCurrentStatus(),
+        listRecentMeasurements(MEASUREMENT_LIMIT),
+        listDevices(),
+        listRecentRawPackets(RAW_PACKET_LIMIT),
+        getAutostartStatus(),
+        getScanIntervalSettings(),
+      ],
+    );
 
     return {
       backendAvailable: true,
@@ -35,6 +39,7 @@ export async function loadDashboardData(): Promise<DashboardLoad> {
         devices,
         measurements,
         rawPackets,
+        scanIntervals,
         status,
       },
       error: null,

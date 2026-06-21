@@ -7,6 +7,7 @@ import type {
   DeviceRecord,
   MeasurementRecord,
   RawPacketRecord,
+  ScanIntervalSettings,
   WatcherStatusResponse,
 } from "./types";
 
@@ -48,6 +49,16 @@ export async function getAutostartStatus(): Promise<AutostartStatus> {
 
 export async function setAutostartEnabled(enabled: boolean): Promise<AutostartStatus> {
   return invoke<AutostartStatus>("set_autostart_enabled", { enabled });
+}
+
+export async function getScanIntervalSettings(): Promise<ScanIntervalSettings> {
+  return invoke<ScanIntervalSettings>("get_scan_interval_settings");
+}
+
+export async function setScanIntervalSettings(
+  settings: ScanIntervalSettings,
+): Promise<ScanIntervalSettings> {
+  return invoke<ScanIntervalSettings>("set_scan_interval_settings", { settings });
 }
 
 export async function listenToBackendEvent(

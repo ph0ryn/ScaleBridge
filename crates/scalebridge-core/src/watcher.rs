@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -121,13 +122,16 @@ pub enum WatcherEvent {
     },
 }
 
-#[derive(Debug, Clone)]
+type RescanDelayProvider = Arc<dyn Fn() -> Duration + Send + Sync>;
+
+#[derive(Clone)]
 pub struct ScaleWatcherConfig {
     pub scan_duration: Duration,
     pub rescan_delay: Duration,
     pub connect_timeout: Duration,
     pub service_discovery_timeout: Duration,
     pub notification_idle_timeout: Duration,
+    rescan_delay_provider: Option<RescanDelayProvider>,
 }
 
 impl Default for ScaleWatcherConfig {
@@ -138,7 +142,42 @@ impl Default for ScaleWatcherConfig {
             connect_timeout: Duration::from_secs(10),
             service_discovery_timeout: Duration::from_secs(10),
             notification_idle_timeout: Duration::from_secs(30),
+            rescan_delay_provider: None,
         }
+    }
+}
+
+impl fmt::Debug for ScaleWatcherConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ScaleWatcherConfig")
+            .field("scan_duration", &self.scan_duration)
+            .field("rescan_delay", &self.rescan_delay)
+            .field("connect_timeout", &self.connect_timeout)
+            .field("service_discovery_timeout", &self.service_discovery_timeout)
+            .field("notification_idle_timeout", &self.notification_idle_timeout)
+            .field(
+                "rescan_delay_provider",
+                &self.rescan_delay_provider.is_some(),
+            )
+            .finish()
+    }
+}
+
+impl ScaleWatcherConfig {
+    #[must_use]
+    pub fn with_rescan_delay_provider<F>(mut self, provider: F) -> Self
+    where
+        F: Fn() -> Duration + Send + Sync + 'static,
+    {
+        self.rescan_delay_provider = Some(Arc::new(provider));
+        self
+    }
+
+    fn current_rescan_delay(&self) -> Duration {
+        self.rescan_delay_provider
+            .as_ref()
+            .map_or(self.rescan_delay, |provider| provider())
     }
 }
 
@@ -281,7 +320,7 @@ async fn run_watcher(
             },
         );
 
-        if wait_or_stop(config.rescan_delay, &mut stop_receiver).await {
+        if wait_or_stop(config.current_rescan_delay(), &mut stop_receiver).await {
             break;
         }
     }

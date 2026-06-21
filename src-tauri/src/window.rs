@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, WebviewWindow, WindowEvent};
 
-const MAIN_WINDOW_LABEL: &str = "main";
+pub const MAIN_WINDOW_LABEL: &str = "main";
 static PREVENT_NEXT_CLOSE_EXIT: AtomicBool = AtomicBool::new(false);
 
 pub fn consume_close_exit_request() -> bool {

@@ -16,8 +16,12 @@ import type {
   DeviceRecord,
   MeasurementRecord,
   RawPacketRecord,
+  ScanIntervalSettings,
   WatcherStatus,
 } from "../lib/types";
+
+const SCAN_INTERVAL_MIN_SECONDS = 1;
+const SCAN_INTERVAL_MAX_SECONDS = 3600;
 
 const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -30,6 +34,7 @@ const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
 export interface DashboardHandlers {
   onSelectView: (view: DashboardView) => void;
   onSetAutostartEnabled: (enabled: boolean) => void;
+  onSetScanIntervalSettings: (settings: ScanIntervalSettings) => void;
 }
 
 export function renderDashboard(state: AppState, handlers: DashboardHandlers): HTMLElement {
@@ -96,6 +101,7 @@ function renderActiveView(
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
         renderAutostartPanel(data, state, handlers),
+        renderScanIntervalPanel(data, state, handlers),
       ]);
   }
 }
@@ -121,6 +127,7 @@ function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
     case "settings":
       return createElement("section", { className: "view-surface settings-grid" }, [
         renderSkeletonPanel("Autostart"),
+        renderSkeletonPanel("Scan interval"),
       ]);
   }
 }
@@ -313,6 +320,125 @@ function renderAutostartPanel(
       }),
     ]),
   ]);
+}
+
+function renderScanIntervalPanel(
+  data: DashboardData,
+  state: AppState,
+  handlers: DashboardHandlers,
+): HTMLElement {
+  return createElement("section", { className: "panel settings-panel scan-interval-panel" }, [
+    renderPanelHeader("Scan interval", "BLE rescan cadence"),
+    renderScanIntervalForm(data.scanIntervals, state, handlers),
+  ]);
+}
+
+function renderScanIntervalForm(
+  settings: ScanIntervalSettings,
+  state: AppState,
+  handlers: DashboardHandlers,
+): HTMLElement {
+  const disabled = state.saving || !state.backendAvailable;
+  const windowOpenInput = renderScanIntervalInput(settings.windowOpenSeconds, disabled);
+  const backgroundInput = renderScanIntervalInput(settings.backgroundSeconds, disabled);
+  const form = createElement("div", { className: "scan-interval-form" }, [
+    renderScanIntervalControl(
+      "Window open",
+      "Scan while Settings or dashboard is visible",
+      windowOpenInput,
+    ),
+    renderScanIntervalControl(
+      "Background",
+      "Scan while only the tray app is running",
+      backgroundInput,
+    ),
+  ]);
+  const apply = (): void => {
+    const nextSettings = readScanIntervalSettings(windowOpenInput, backgroundInput);
+
+    if (nextSettings) {
+      handlers.onSetScanIntervalSettings(nextSettings);
+    }
+  };
+
+  windowOpenInput.addEventListener("change", apply);
+  backgroundInput.addEventListener("change", apply);
+
+  return form;
+}
+
+function renderScanIntervalControl(
+  title: string,
+  description: string,
+  input: HTMLInputElement,
+): HTMLLabelElement {
+  return createElement("label", { className: "scan-interval-control" }, [
+    createElement("span", { className: "setting-copy" }, [
+      createElement("strong", { text: title }),
+      createElement("span", { text: description }),
+    ]),
+    createElement("span", { className: "scan-interval-input-shell" }, [
+      input,
+      createElement("span", { text: "sec" }),
+    ]),
+  ]);
+}
+
+function renderScanIntervalInput(value: number, disabled: boolean): HTMLInputElement {
+  const input = createElement("input", { className: "scan-interval-input" });
+
+  input.disabled = disabled;
+  input.inputMode = "numeric";
+  input.max = String(SCAN_INTERVAL_MAX_SECONDS);
+  input.min = String(SCAN_INTERVAL_MIN_SECONDS);
+  input.step = "1";
+  input.type = "number";
+  input.value = String(value);
+
+  input.addEventListener("input", () => {
+    input.setCustomValidity("");
+  });
+
+  return input;
+}
+
+function readScanIntervalSettings(
+  windowOpenInput: HTMLInputElement,
+  backgroundInput: HTMLInputElement,
+): ScanIntervalSettings | null {
+  const windowOpenSeconds = readScanIntervalValue(windowOpenInput);
+  const backgroundSeconds = readScanIntervalValue(backgroundInput);
+
+  if (windowOpenSeconds === null || backgroundSeconds === null) {
+    return null;
+  }
+
+  return {
+    backgroundSeconds,
+    windowOpenSeconds,
+  };
+}
+
+function readScanIntervalValue(input: HTMLInputElement): number | null {
+  const value = Number(input.value);
+
+  if (
+    !Number.isInteger(value) ||
+    value < SCAN_INTERVAL_MIN_SECONDS ||
+    value > SCAN_INTERVAL_MAX_SECONDS
+  ) {
+    input.setCustomValidity(
+      `Enter ${SCAN_INTERVAL_MIN_SECONDS}-${SCAN_INTERVAL_MAX_SECONDS} seconds`,
+    );
+
+    input.reportValidity();
+
+    return null;
+  }
+
+  input.setCustomValidity("");
+
+  return value;
 }
 
 function renderMeasurementsPanel(measurements: MeasurementRecord[]): HTMLElement {

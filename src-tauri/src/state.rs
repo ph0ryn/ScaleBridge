@@ -1,11 +1,19 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use scalebridge_core::{
     DeviceInfo, Measurement, MeasurementEvent, ScaleWatcherHandle, WatcherStatus,
 };
-use scalebridge_storage::Storage;
-use serde::Serialize;
+use scalebridge_storage::{Storage, StorageError};
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+
+const SCAN_WINDOW_OPEN_SECONDS_KEY: &str = "scan.window_open_seconds";
+const SCAN_BACKGROUND_SECONDS_KEY: &str = "scan.background_seconds";
+const DEFAULT_WINDOW_OPEN_SCAN_SECONDS: u64 = 2;
+const DEFAULT_BACKGROUND_SCAN_SECONDS: u64 = 10;
+pub const MIN_SCAN_INTERVAL_SECONDS: u64 = 1;
+pub const MAX_SCAN_INTERVAL_SECONDS: u64 = 3600;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -13,8 +21,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(storage: Storage) -> Self {
-        Self {
+    pub fn new(storage: Storage) -> Result<Self, StorageError> {
+        let scan_interval_settings = ScanIntervalSettings::load(&storage)?;
+
+        Ok(Self {
             inner: Arc::new(Mutex::new(BackendState {
                 storage,
                 watcher: None,
@@ -22,8 +32,9 @@ impl AppState {
                 live_measurement: LiveMeasurementStatus::idle(),
                 latest_measurement: None,
                 last_error: None,
+                scan_interval_settings,
             })),
-        }
+        })
     }
 
     pub fn with_lock<T>(
@@ -46,6 +57,67 @@ pub struct BackendState {
     pub live_measurement: LiveMeasurementStatus,
     pub latest_measurement: Option<MeasurementEvent>,
     pub last_error: Option<String>,
+    pub scan_interval_settings: ScanIntervalSettings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanIntervalSettings {
+    pub window_open_seconds: u64,
+    pub background_seconds: u64,
+}
+
+impl Default for ScanIntervalSettings {
+    fn default() -> Self {
+        Self {
+            window_open_seconds: DEFAULT_WINDOW_OPEN_SCAN_SECONDS,
+            background_seconds: DEFAULT_BACKGROUND_SCAN_SECONDS,
+        }
+    }
+}
+
+impl ScanIntervalSettings {
+    #[must_use]
+    pub fn duration_for_window_open(self, window_open: bool) -> Duration {
+        if window_open {
+            return Duration::from_secs(self.window_open_seconds);
+        }
+
+        Duration::from_secs(self.background_seconds)
+    }
+
+    pub fn validate(self) -> Result<Self, String> {
+        validate_interval_seconds("window open scan interval", self.window_open_seconds)?;
+        validate_interval_seconds("background scan interval", self.background_seconds)?;
+
+        Ok(self)
+    }
+
+    fn load(storage: &Storage) -> Result<Self, StorageError> {
+        Ok(Self {
+            window_open_seconds: load_interval_seconds(
+                storage,
+                SCAN_WINDOW_OPEN_SECONDS_KEY,
+                DEFAULT_WINDOW_OPEN_SCAN_SECONDS,
+            )?,
+            background_seconds: load_interval_seconds(
+                storage,
+                SCAN_BACKGROUND_SECONDS_KEY,
+                DEFAULT_BACKGROUND_SCAN_SECONDS,
+            )?,
+        })
+    }
+
+    fn save(self, storage: &Storage) -> Result<(), StorageError> {
+        storage.set_setting_i64(
+            SCAN_WINDOW_OPEN_SECONDS_KEY,
+            i64::try_from(self.window_open_seconds).expect("scan interval fits i64"),
+        )?;
+        storage.set_setting_i64(
+            SCAN_BACKGROUND_SECONDS_KEY,
+            i64::try_from(self.background_seconds).expect("scan interval fits i64"),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -116,5 +188,96 @@ impl BackendState {
             latest_measurement: self.latest_measurement.clone(),
             last_error: self.last_error.clone(),
         }
+    }
+
+    pub fn set_scan_interval_settings(
+        &mut self,
+        settings: ScanIntervalSettings,
+    ) -> Result<ScanIntervalSettings, String> {
+        let settings = settings.validate()?;
+
+        settings
+            .save(&self.storage)
+            .map_err(|error| error.to_string())?;
+        self.scan_interval_settings = settings;
+
+        Ok(settings)
+    }
+
+    #[must_use]
+    pub fn scan_interval_for_window_open(&self, window_open: bool) -> Duration {
+        self.scan_interval_settings
+            .duration_for_window_open(window_open)
+    }
+}
+
+fn load_interval_seconds(
+    storage: &Storage,
+    key: &str,
+    default_value: u64,
+) -> Result<u64, StorageError> {
+    let Some(value) = storage.get_setting_i64(key)? else {
+        return Ok(default_value);
+    };
+    let Ok(seconds) = u64::try_from(value) else {
+        return Ok(default_value);
+    };
+
+    if valid_interval_seconds(seconds) {
+        return Ok(seconds);
+    }
+
+    Ok(default_value)
+}
+
+fn validate_interval_seconds(label: &str, value: u64) -> Result<(), String> {
+    if valid_interval_seconds(value) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "{label} must be between {MIN_SCAN_INTERVAL_SECONDS} and {MAX_SCAN_INTERVAL_SECONDS} seconds"
+    ))
+}
+
+fn valid_interval_seconds(value: u64) -> bool {
+    (MIN_SCAN_INTERVAL_SECONDS..=MAX_SCAN_INTERVAL_SECONDS).contains(&value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loads_default_scan_interval_settings() {
+        let storage = Storage::open_in_memory().unwrap();
+        let state = AppState::new(storage).unwrap();
+
+        let settings = state
+            .with_lock(|state| Ok(state.scan_interval_settings))
+            .unwrap();
+
+        assert_eq!(settings.window_open_seconds, 2);
+        assert_eq!(settings.background_seconds, 10);
+    }
+
+    #[test]
+    fn validates_scan_interval_settings() {
+        assert!(
+            ScanIntervalSettings {
+                window_open_seconds: 2,
+                background_seconds: 10,
+            }
+            .validate()
+            .is_ok()
+        );
+        assert!(
+            ScanIntervalSettings {
+                window_open_seconds: 0,
+                background_seconds: 10,
+            }
+            .validate()
+            .is_err()
+        );
     }
 }

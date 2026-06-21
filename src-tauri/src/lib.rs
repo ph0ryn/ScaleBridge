@@ -29,13 +29,15 @@ pub fn run() {
             commands::stop_watcher,
             commands::get_autostart_status,
             commands::set_autostart_enabled,
+            commands::get_scan_interval_settings,
+            commands::set_scan_interval_settings,
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("scalebridge.sqlite");
             let storage = Storage::open(db_path)?;
-            let state = AppState::new(storage);
+            let state = AppState::new(storage)?;
             app.manage(state.clone());
 
             if let Err(error) = services::start_watcher(app.handle().clone(), state) {

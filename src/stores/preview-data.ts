@@ -62,6 +62,10 @@ export function createPreviewData(errorMessage: string): DashboardData {
         seen_at: older.toISOString(),
       },
     ],
+    scanIntervals: {
+      backgroundSeconds: 10,
+      windowOpenSeconds: 2,
+    },
     status: {
       lastError: errorMessage,
       latestMeasurement: {

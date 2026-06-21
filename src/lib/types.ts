@@ -70,6 +70,11 @@ export interface AutostartStatus {
   enabled: boolean;
 }
 
+export interface ScanIntervalSettings {
+  backgroundSeconds: number;
+  windowOpenSeconds: number;
+}
+
 export interface DeviceRecord {
   id: number;
   model: string | null;
@@ -107,5 +112,6 @@ export interface DashboardData {
   devices: DeviceRecord[];
   rawPackets: RawPacketRecord[];
   measurements: MeasurementRecord[];
+  scanIntervals: ScanIntervalSettings;
   status: AppStatus;
 }

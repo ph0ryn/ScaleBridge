@@ -2,8 +2,10 @@ import { renderDashboard } from "../components/dashboard";
 import { replaceChildren } from "../components/dom";
 import { loadDashboardData } from "../features/dashboard/data";
 import { subscribeToDashboardEvents } from "../features/dashboard/subscriptions";
-import { setAutostartEnabled } from "../lib/tauri";
+import { setAutostartEnabled, setScanIntervalSettings } from "../lib/tauri";
 import { createInitialAppState, type AppState, type DashboardView } from "./state";
+
+import type { ScanIntervalSettings } from "../lib/types";
 
 export function mountApp(root: HTMLElement): void {
   const state = createInitialAppState();
@@ -19,6 +21,9 @@ export function mountApp(root: HTMLElement): void {
         },
         onSetAutostartEnabled: (enabled: boolean) => {
           void runAutostartAction(state, render, enabled);
+        },
+        onSetScanIntervalSettings: (settings: ScanIntervalSettings) => {
+          void runScanIntervalSettingsAction(state, render, settings);
         },
       }),
     ]);
@@ -75,6 +80,34 @@ async function runAutostartAction(
 
     if (state.data) {
       state.data.autostart = autostart;
+    }
+  } catch (error) {
+    state.error = String(error);
+
+    if (error instanceof Error) {
+      state.error = error.message;
+    }
+
+    state.backendAvailable = false;
+  }
+
+  await refreshDashboard(state, render);
+}
+
+async function runScanIntervalSettingsAction(
+  state: AppState,
+  render: () => void,
+  settings: ScanIntervalSettings,
+): Promise<void> {
+  state.saving = true;
+  state.error = null;
+  render();
+
+  try {
+    const scanIntervals = await setScanIntervalSettings(settings);
+
+    if (state.data) {
+      state.data.scanIntervals = scanIntervals;
     }
   } catch (error) {
     state.error = String(error);
