@@ -8,7 +8,7 @@ import {
   formatWeight,
   truncateMiddle,
 } from "../lib/format";
-import { createElement, createSvgIcon, type Child } from "./dom";
+import { createElement, type Child } from "./dom";
 
 import type { AppState, DashboardView } from "../app/state";
 import type {
@@ -20,8 +20,6 @@ import type {
   WatcherStatus,
 } from "../lib/types";
 
-const REFRESH_ICON = "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6";
-
 const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "history", label: "History" },
@@ -31,16 +29,8 @@ const VIEW_ITEMS: { id: DashboardView; label: string }[] = [
 ];
 
 export interface DashboardHandlers {
-  onRefresh: () => void;
   onSelectView: (view: DashboardView) => void;
   onSetAutostartEnabled: (enabled: boolean) => void;
-}
-
-interface ActionButtonOptions {
-  disabled: boolean;
-  iconPath: string;
-  label: string;
-  onClick: () => void;
 }
 
 export function renderDashboard(state: AppState, handlers: DashboardHandlers): HTMLElement {
@@ -188,13 +178,6 @@ function renderTopbar(
   state: AppState,
   handlers: DashboardHandlers,
 ): HTMLElement {
-  const refreshButton = renderActionButton({
-    disabled: state.loading,
-    iconPath: REFRESH_ICON,
-    label: "Refresh",
-    onClick: handlers.onRefresh,
-  });
-
   return createElement("header", { className: "topbar" }, [
     renderTopbarTitle(state.activeView, subtitleForView(data, state.activeView)),
     createElement("div", { className: "topbar-right" }, [
@@ -204,27 +187,18 @@ function renderTopbar(
           formatStatusLabel(data.status.watcherStatus),
           toneForStatus(data.status.watcherStatus),
         ),
-        refreshButton,
       ]),
     ]),
   ]);
 }
 
 function renderLoadingTopbar(state: AppState, handlers: DashboardHandlers): HTMLElement {
-  const refreshButton = renderActionButton({
-    disabled: true,
-    iconPath: REFRESH_ICON,
-    label: "Refresh",
-    onClick: handlers.onRefresh,
-  });
-
   return createElement("header", { className: "topbar" }, [
     renderTopbarTitle(state.activeView, "Loading local status"),
     createElement("div", { className: "topbar-right" }, [
       renderViewTabs(state.activeView, handlers),
       createElement("div", { className: "topbar-actions" }, [
         renderStatusPill("Loading", "neutral"),
-        refreshButton,
       ]),
     ]),
   ]);
@@ -527,23 +501,6 @@ function renderAutostartSwitch(options: {
   button.addEventListener("click", () => {
     options.onToggle(!options.enabled);
   });
-
-  return button;
-}
-
-function renderActionButton(options: ActionButtonOptions): HTMLButtonElement {
-  const button = createElement("button", {
-    className: "action-button",
-    disabled: options.disabled,
-    type: "button",
-  });
-
-  button.append(
-    createSvgIcon(options.iconPath, options.label),
-    document.createTextNode(options.label),
-  );
-
-  button.addEventListener("click", options.onClick);
 
   return button;
 }

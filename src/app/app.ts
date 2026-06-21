@@ -13,9 +13,6 @@ export function mountApp(root: HTMLElement): void {
   const render = (): void => {
     replaceChildren(root, [
       renderDashboard(state, {
-        onRefresh: () => {
-          void refreshDashboard(state, render);
-        },
         onSelectView: (view: DashboardView) => {
           state.activeView = view;
           render();

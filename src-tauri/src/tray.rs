@@ -1,5 +1,5 @@
 use tauri::{
-    App, Manager,
+    App, Emitter, Manager,
     image::Image,
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
@@ -10,8 +10,10 @@ use crate::state::AppState;
 use crate::window;
 
 const OPEN_MENU_ID: &str = "open";
+const REFRESH_MENU_ID: &str = "refresh";
 const TOGGLE_WATCHER_MENU_ID: &str = "toggle-watcher";
 const QUIT_MENU_ID: &str = "quit";
+const REFRESH_DASHBOARD_EVENT: &str = "dashboard://refresh-requested";
 const RESUME_WATCHER_LABEL: &str = "Resume";
 const STOP_WATCHER_LABEL: &str = "Stop";
 
@@ -20,6 +22,8 @@ pub fn create_tray(app: &App) -> Result<(), String> {
         .map_err(|error| format!("failed to load tray icon: {error}"))?;
     let open_item = MenuItem::with_id(app, OPEN_MENU_ID, "Open", true, None::<&str>)
         .map_err(|error| format!("failed to create open menu item: {error}"))?;
+    let refresh_item = MenuItem::with_id(app, REFRESH_MENU_ID, "Refresh", true, None::<&str>)
+        .map_err(|error| format!("failed to create refresh menu item: {error}"))?;
     let watcher_item = MenuItem::with_id(
         app,
         TOGGLE_WATCHER_MENU_ID,
@@ -30,7 +34,7 @@ pub fn create_tray(app: &App) -> Result<(), String> {
     .map_err(|error| format!("failed to create watcher menu item: {error}"))?;
     let quit_item = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)
         .map_err(|error| format!("failed to create quit menu item: {error}"))?;
-    let menu = Menu::with_items(app, &[&open_item, &watcher_item, &quit_item])
+    let menu = Menu::with_items(app, &[&open_item, &refresh_item, &watcher_item, &quit_item])
         .map_err(|error| format!("failed to create tray menu: {error}"))?;
     let app_handle = app.handle().clone();
     let watcher_item_for_menu = watcher_item.clone();
@@ -47,6 +51,9 @@ pub fn create_tray(app: &App) -> Result<(), String> {
                 if let Err(error) = window::show_main_window(app) {
                     eprintln!("failed to show main window: {error}");
                 }
+            }
+            REFRESH_MENU_ID => {
+                request_dashboard_refresh(app);
             }
             TOGGLE_WATCHER_MENU_ID => {
                 toggle_watcher(app);
@@ -66,6 +73,12 @@ pub fn create_tray(app: &App) -> Result<(), String> {
         .map_err(|error| format!("failed to create tray icon: {error}"))?;
 
     Ok(())
+}
+
+fn request_dashboard_refresh(app: &tauri::AppHandle) {
+    if let Err(error) = app.emit(REFRESH_DASHBOARD_EVENT, ()) {
+        eprintln!("failed to request dashboard refresh: {error}");
+    }
 }
 
 fn toggle_watcher(app: &tauri::AppHandle) {

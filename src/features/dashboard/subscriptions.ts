@@ -1,6 +1,7 @@
 import { type BackendEventName, listenToBackendEvent } from "../../lib/tauri";
 
 const backendEventNames: BackendEventName[] = [
+  "dashboard://refresh-requested",
   "watcher://status-changed",
   "watcher://device-seen",
   "watcher://packet-received",

@@ -187,8 +187,7 @@ table {
   min-width: 0;
 }
 
-.topbar-actions,
-.inline-actions {
+.topbar-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -228,37 +227,6 @@ table {
   background: var(--tsite-white);
   color: var(--tsite-black);
   font-weight: 700;
-}
-
-.action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--tsite-border);
-  background: var(--tsite-white);
-  color: var(--tsite-black);
-  font-size: 10px;
-  font-weight: 300;
-  line-height: 1;
-}
-
-.action-button:hover:not(:disabled) {
-  border-color: var(--tsite-black);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.action-button:disabled {
-  background: var(--tsite-card);
-  color: var(--tsite-gray);
-}
-
-.icon {
-  width: 13px;
-  height: 13px;
 }
 
 .view-surface {

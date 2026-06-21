@@ -12,6 +12,7 @@ import type {
 } from "./types";
 
 export type BackendEventName =
+  | "dashboard://refresh-requested"
   | "watcher://status-changed"
   | "watcher://device-seen"
   | "watcher://packet-received"
