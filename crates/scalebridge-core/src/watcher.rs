@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use btleplug::api::{Central, CharPropFlags, Manager as _, Peripheral, ScanFilter, WriteType};
@@ -7,6 +8,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::{OffsetDateTime, UtcOffset};
+use tokio::runtime::Handle;
 use tokio::sync::watch;
 
 use crate::{
@@ -145,13 +147,22 @@ pub enum WatcherError {
     Ble(#[from] btleplug::Error),
     #[error("watcher task failed: {0}")]
     Join(#[from] tokio::task::JoinError),
+    #[error("watcher runtime failed: {0}")]
+    Runtime(#[from] std::io::Error),
+    #[error("watcher thread panicked")]
+    ThreadPanic,
 }
 
 pub struct ScaleWatcher;
 
 pub struct ScaleWatcherHandle {
     stop_sender: watch::Sender<bool>,
-    join_handle: tokio::task::JoinHandle<Result<(), WatcherError>>,
+    join_handle: WatcherJoinHandle,
+}
+
+enum WatcherJoinHandle {
+    Tokio(tokio::task::JoinHandle<Result<(), WatcherError>>),
+    Thread(thread::JoinHandle<Result<(), WatcherError>>),
 }
 
 impl ScaleWatcherHandle {
@@ -160,7 +171,15 @@ impl ScaleWatcherHandle {
     }
 
     pub async fn wait(self) -> Result<(), WatcherError> {
-        self.join_handle.await?
+        match self.join_handle {
+            WatcherJoinHandle::Tokio(join_handle) => join_handle.await?,
+            WatcherJoinHandle::Thread(join_handle) => {
+                tokio::task::spawn_blocking(move || {
+                    join_handle.join().map_err(|_| WatcherError::ThreadPanic)?
+                })
+                .await?
+            }
+        }
     }
 }
 
@@ -182,14 +201,37 @@ impl ScaleWatcher {
     {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let event_sink = Arc::new(event_sink);
-        let join_handle =
-            tokio::spawn(async move { run_watcher(config, event_sink, stop_receiver).await });
+        let join_handle = spawn_watcher_task(config, event_sink, stop_receiver);
 
         ScaleWatcherHandle {
             stop_sender,
             join_handle,
         }
     }
+}
+
+fn spawn_watcher_task(
+    config: ScaleWatcherConfig,
+    event_sink: EventSink,
+    stop_receiver: watch::Receiver<bool>,
+) -> WatcherJoinHandle {
+    if let Ok(handle) = Handle::try_current() {
+        return WatcherJoinHandle::Tokio(
+            handle.spawn(async move { run_watcher(config, event_sink, stop_receiver).await }),
+        );
+    }
+
+    let join_handle = thread::Builder::new()
+        .name("scalebridge-watcher".to_string())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?;
+            runtime.block_on(run_watcher(config, event_sink, stop_receiver))
+        })
+        .expect("failed to spawn ScaleBridge watcher thread");
+
+    WatcherJoinHandle::Thread(join_handle)
 }
 
 async fn run_watcher(
