@@ -232,11 +232,6 @@ table {
 
 .overview-grid {
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.85fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.overview-grid .latest-panel {
-  grid-row: 1 / span 2;
 }
 
 .single-panel-view {
@@ -617,10 +612,6 @@ table {
   .raw-log-grid,
   .settings-grid {
     grid-template-columns: 1fr;
-  }
-
-  .overview-grid .latest-panel {
-    grid-row: auto;
   }
 }
 

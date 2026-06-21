@@ -39,11 +39,11 @@ pub fn run() {
             let state = AppState::new(storage);
             app.manage(state.clone());
 
-            tray::create_tray(app)?;
-
             if let Err(error) = services::start_watcher(app.handle().clone(), state) {
                 eprintln!("failed to start watcher: {error}");
             }
+
+            tray::create_tray(app)?;
 
             Ok(())
         })

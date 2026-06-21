@@ -95,7 +95,6 @@ function renderActiveView(
       return createElement("section", { className: "view-surface overview-grid" }, [
         renderLatestMeasurement(data),
         renderConnectionPanel(data, state, handlers),
-        renderEventsPanel(data.events),
       ]);
     case "history":
       return createElement("section", { className: "view-surface single-panel-view" }, [
@@ -124,7 +123,6 @@ function renderLoadingActiveView(activeView: DashboardView): HTMLElement {
       return createElement("section", { className: "view-surface overview-grid" }, [
         renderSkeletonPanel("Latest measurement"),
         renderSkeletonPanel("Connection"),
-        renderSkeletonPanel("App events"),
       ]);
     case "history":
       return createElement("section", { className: "view-surface single-panel-view" }, [
