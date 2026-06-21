@@ -32,14 +32,14 @@ pub fn run() {
             commands::set_autostart_enabled,
         ])
         .setup(|app| {
-            tray::create_tray(app)?;
-
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("scalebridge.sqlite");
             let storage = Storage::open(db_path)?;
             let state = AppState::new(storage);
             app.manage(state.clone());
+
+            tray::create_tray(app)?;
 
             if let Err(error) = services::start_watcher(app.handle().clone(), state) {
                 eprintln!("failed to start watcher: {error}");
