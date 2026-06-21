@@ -8,7 +8,9 @@ pub struct DeviceRecord {
     pub name: Option<String>,
     pub address: Option<String>,
     pub service_uuids_json: String,
+    #[serde(with = "time::serde::rfc3339")]
     pub first_seen_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub last_seen_at: OffsetDateTime,
 }
 
@@ -48,6 +50,7 @@ impl PacketDirection {
 pub struct RawPacketRecord {
     pub id: i64,
     pub device_id: Option<i64>,
+    #[serde(with = "time::serde::rfc3339")]
     pub seen_at: OffsetDateTime,
     pub direction: PacketDirection,
     pub characteristic_uuid: Option<String>,
@@ -71,6 +74,7 @@ pub struct RawPacketInsert {
 pub struct MeasurementRecord {
     pub id: i64,
     pub device_id: Option<i64>,
+    #[serde(with = "time::serde::rfc3339")]
     pub measured_at: OffsetDateTime,
     pub weight_kg: Option<f64>,
     pub impedance: Option<i64>,
@@ -93,6 +97,7 @@ pub struct MeasurementInsert {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppEventRecord {
     pub id: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub level: String,
     pub message: String,
@@ -105,4 +110,28 @@ pub struct AppEventInsert {
     pub level: String,
     pub message: String,
     pub context_json: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_record_times_as_rfc3339_strings() {
+        let measured_at = OffsetDateTime::from_unix_timestamp(1_766_194_280).unwrap();
+        let record = MeasurementRecord {
+            id: 1,
+            device_id: Some(1),
+            measured_at,
+            weight_kg: Some(53.2),
+            impedance: Some(5880),
+            encrypted_impedance: Some(0),
+            stable: true,
+            raw_packet_id: Some(82),
+        };
+
+        let json = serde_json::to_value(record).unwrap();
+
+        assert!(json["measured_at"].is_string());
+    }
 }

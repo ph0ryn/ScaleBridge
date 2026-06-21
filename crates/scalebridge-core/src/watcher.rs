@@ -62,6 +62,7 @@ pub struct DeviceInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RawPacketEvent {
     pub device: DeviceInfo,
+    #[serde(with = "time::serde::rfc3339")]
     pub seen_at: OffsetDateTime,
     pub direction: PacketDirection,
     pub characteristic_uuid: Option<String>,
@@ -73,6 +74,7 @@ pub struct RawPacketEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasurementEvent {
     pub device: DeviceInfo,
+    #[serde(with = "time::serde::rfc3339")]
     pub measured_at: OffsetDateTime,
     pub measurement: Measurement,
     pub raw_bytes: Vec<u8>,
@@ -804,5 +806,40 @@ async fn wait_or_stop(duration: Duration, stop_receiver: &mut watch::Receiver<bo
     tokio::select! {
         _ = &mut sleep => false,
         changed = stop_receiver.changed() => changed.is_err() || *stop_receiver.borrow(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{DeviceProfile, Measurement, WeightStatus};
+
+    #[test]
+    fn serializes_measurement_event_time_as_rfc3339_string() {
+        let measured_at = OffsetDateTime::from_unix_timestamp(1_766_194_280).unwrap();
+        let event = MeasurementEvent {
+            device: DeviceInfo {
+                id: "test-device".to_string(),
+                address: "test-address".to_string(),
+                name: Some("test scale".to_string()),
+                service_uuids: Vec::new(),
+                profile: DeviceProfile::t9120(),
+            },
+            measured_at,
+            measurement: Measurement {
+                weight_raw: 532,
+                weight_kg: 53.2,
+                impedance: 5880,
+                encrypted_impedance: 0,
+                fat_mode: 0,
+                status: WeightStatus::Stable,
+            },
+            raw_bytes: Vec::new(),
+            characteristic_uuid: None,
+        };
+
+        let json = serde_json::to_value(event).unwrap();
+
+        assert!(json["measured_at"].is_string());
     }
 }

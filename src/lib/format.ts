@@ -3,30 +3,24 @@ const dateTimeFormat = new Intl.DateTimeFormat(undefined, {
   timeStyle: "medium",
 });
 
-export function formatDateTime(value: string | null | undefined): string {
-  if (!value) {
+export function formatDateTime(value: unknown): string {
+  const date = parseDateTime(value);
+
+  if (!date) {
     return "--";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.valueOf())) {
-    return value;
   }
 
   return dateTimeFormat.format(date);
 }
 
-export function formatElapsed(value: string | null | undefined): string {
-  if (!value) {
+export function formatElapsed(value: unknown): string {
+  const date = parseDateTime(value);
+
+  if (!date) {
     return "--";
   }
 
-  const timestamp = new Date(value).valueOf();
-
-  if (Number.isNaN(timestamp)) {
-    return "--";
-  }
+  const timestamp = date.valueOf();
 
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
 
@@ -43,6 +37,60 @@ export function formatElapsed(value: string | null | undefined): string {
   const elapsedHours = Math.round(elapsedMinutes / 60);
 
   return `${elapsedHours}h ago`;
+}
+
+function parseDateTime(value: unknown): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return validDateOrNull(value);
+  }
+
+  if (Array.isArray(value)) {
+    return parseOffsetDateTimeTuple(value);
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = validDateOrNull(new Date(value));
+
+  if (date) {
+    return date;
+  }
+
+  return parseOffsetDateTimeTuple(value.split(","));
+}
+
+function parseOffsetDateTimeTuple(parts: unknown[]): Date | null {
+  if (parts.length !== 9) {
+    return null;
+  }
+
+  const numbers = parts.map((part) => Number(part));
+
+  if (numbers.some((part) => !Number.isFinite(part))) {
+    return null;
+  }
+
+  const [year, ordinal, hour, minute, second, nanosecond, offsetHour, offsetMinute, offsetSecond] =
+    numbers;
+  const utcMilliseconds =
+    Date.UTC(year, 0, ordinal, hour, minute, second, Math.floor(nanosecond / 1_000_000)) -
+    ((offsetHour * 60 + offsetMinute) * 60 + offsetSecond) * 1000;
+
+  return validDateOrNull(new Date(utcMilliseconds));
+}
+
+function validDateOrNull(date: Date): Date | null {
+  if (Number.isNaN(date.valueOf())) {
+    return null;
+  }
+
+  return date;
 }
 
 export function formatWeight(value: number | null | undefined): string {
