@@ -263,6 +263,12 @@ table {
   overflow: auto;
 }
 
+.log-panel {
+  align-content: stretch;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .alert-panel {
   display: flex;
   align-items: center;
@@ -651,7 +657,17 @@ table {
   gap: 0;
   min-height: 0;
   border: 1px solid var(--tsite-border);
+}
+
+.device-list {
   overflow: hidden;
+}
+
+.log-list {
+  align-self: stretch;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .device-row,
