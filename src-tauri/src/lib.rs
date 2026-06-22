@@ -33,6 +33,9 @@ pub fn run() {
             commands::set_scan_interval_settings,
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_dock_visibility(false);
+
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("scalebridge.sqlite");
