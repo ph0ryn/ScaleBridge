@@ -28,6 +28,15 @@ when you ask for it from the menu bar.
 - Raw packet capture for parser fixes and future device support.
 - No cloud login, server sync, or official account API dependency.
 
+## Runtime Memory Usage
+
+Measured on macOS 26.5 during the normal BLE scan cadence.
+
+| State                 | Included processes                                      | Physical footprint | RSS           |
+| --------------------- | ------------------------------------------------------- | ------------------ | ------------- |
+| Background            | App process and WebKit networking service               | 39 MB              | 108-109 MiB   |
+| Dashboard window open | App process, WebKit WebContent, GPU, and networking XPC | 88-89 MB           | 201.8-202 MiB |
+
 ## Support Status
 
 ScaleBridge is currently focused on the T9120 protocol family.
