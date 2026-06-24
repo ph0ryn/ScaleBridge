@@ -18,7 +18,7 @@ const RESUME_WATCHER_LABEL: &str = "Resume";
 const STOP_WATCHER_LABEL: &str = "Stop";
 
 pub fn create_tray(app: &App) -> Result<(), String> {
-    let icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
+    let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
         .map_err(|error| format!("failed to load tray icon: {error}"))?;
     let open_item = MenuItem::with_id(app, OPEN_MENU_ID, "Open", true, None::<&str>)
         .map_err(|error| format!("failed to create open menu item: {error}"))?;
