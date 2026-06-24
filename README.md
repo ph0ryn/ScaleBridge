@@ -2,7 +2,7 @@
 
 <!-- rumdl-disable MD033 -->
 <p align="center">
-  <kbd><img src="src-tauri/icons/icon.png" width="160" alt="ScaleBridge app icon"></kbd>
+  <img src="src-tauri/icons/icon.png" width="180" alt="ScaleBridge app icon">
 </p>
 <!-- rumdl-enable MD033 -->
 
