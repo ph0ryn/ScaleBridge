@@ -41,7 +41,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -104,7 +103,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ScaleBridge ${{ github.ref_name }}
-          draft: true
           prerelease: false
           files: release-assets/**/*
           fail_on_unmatched_files: true
