@@ -117,4 +117,4 @@ does not sync data to a server.
 
 ## License
 
-MIT
+Apache-2.0
